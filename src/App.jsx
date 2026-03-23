@@ -18,8 +18,12 @@ function App() {
   const [userEmail, setUserEmail] = useState('')
 
   const handlePayClick = () => {
-    if (isPaying) return
-    setIsModalOpen(true)
+    const problemSection = document.getElementById('problem-section')
+    if (!problemSection) return
+    problemSection.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
   }
 
   const handleModalClose = () => {

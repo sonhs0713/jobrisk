@@ -161,9 +161,9 @@ span {
 
 .hero-refund-note {
   margin: 6px 0 0;
-  color: rgba(184, 198, 221, 0.72);
+  color: rgba(184, 198, 221, 0.74);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .problem-section {
@@ -783,7 +783,7 @@ span {
 }
 
 .contact-submit {
-  justify-self: start;
+  justify-self: center;
 }
 
 .contact-error {
@@ -1009,7 +1009,7 @@ span {
 
   .contact-submit {
     width: 100%;
-    justify-self: stretch;
+    justify-self: center;
   }
 
   .footer-business-info {

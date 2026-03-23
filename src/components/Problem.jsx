@@ -1,6 +1,6 @@
 function Problem() {
   return (
-    <section className="problem-section">
+    <section id="problem-section" className="problem-section">
       <h2 className="problem-title">다들 한 번씩은 겪어봤을 겁니다
       </h2>
       <div className="problem-grid">
