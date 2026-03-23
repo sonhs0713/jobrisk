@@ -812,6 +812,10 @@ span {
   color: rgba(184, 198, 221, 0.62);
 }
 
+.footer-separator {
+  color: rgba(184, 198, 221, 0.42);
+}
+
 .footer-divider {
   height: 1px;
   margin: var(--space-2) 0;
@@ -823,6 +827,99 @@ span {
   font-size: 13px;
   line-height: 1.6;
   color: rgba(184, 198, 221, 0.66);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.footer-link {
+  color: rgba(220, 230, 247, 0.86);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.terms-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  background: linear-gradient(160deg, #0a0f1e 0%, #101932 55%, #0a0f1e 100%);
+}
+
+.terms-card {
+  width: min(100%, 900px);
+  border: 1px solid #2a3f73;
+  border-radius: var(--radius-md);
+  background: #101a35;
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.terms-back-link {
+  justify-self: start;
+  border: 1px solid rgba(184, 198, 221, 0.35);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+}
+
+.terms-back-link:hover {
+  border-color: rgba(0, 212, 255, 0.75);
+  color: var(--color-accent);
+}
+
+.terms-title {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 800;
+}
+
+.terms-sections {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.terms-section {
+  border-top: 1px solid rgba(184, 198, 221, 0.2);
+  padding-top: var(--space-3);
+  display: grid;
+  gap: 10px;
+}
+
+.terms-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.terms-section-title {
+  margin: 0;
+  font-size: 21px;
+  color: var(--color-accent);
+}
+
+.terms-section-body {
+  margin: 0;
+  color: rgba(220, 230, 247, 0.9);
+  line-height: 1.75;
+}
+
+.terms-section-list {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 8px;
+  color: rgba(220, 230, 247, 0.9);
+  line-height: 1.75;
 }
 
 @media (max-width: 768px) {
@@ -839,6 +936,18 @@ span {
     display: grid;
     gap: 4px;
     justify-items: center;
+  }
+
+  .footer-separator {
+    display: none;
+  }
+
+  .terms-card {
+    padding: var(--space-3);
+  }
+
+  .terms-section-title {
+    font-size: 19px;
   }
 }
 
