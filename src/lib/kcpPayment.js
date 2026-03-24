@@ -1,5 +1,6 @@
 const EARLY_BIRD_AMOUNT = 3000
 const ORDER_NAME = '채용공고 분석 서비스 얼리버드 등록'
+const OFFER_PERIOD_TEXT = '결제 후 1시간 이내 (평일 10시~18시)'
 const DEFAULT_KCP_SCRIPT_URL = 'https://spay.kcp.co.kr/plugin/kcp_spay_hub.js'
 
 function buildOrderId() {
@@ -115,6 +116,9 @@ export async function requestEarlyBirdPayment(customerEmail) {
   appendHiddenInput(form, 'ordr_idxx', orderId)
   appendHiddenInput(form, 'good_name', ORDER_NAME)
   appendHiddenInput(form, 'good_mny', amount)
+  appendHiddenInput(form, 'good_expr', '1')
+  appendHiddenInput(form, 'offerPeriod', OFFER_PERIOD_TEXT)
+  appendHiddenInput(form, 'offer_period', OFFER_PERIOD_TEXT)
   appendHiddenInput(form, 'buyr_mail', customerEmail)
   appendHiddenInput(form, 'Ret_URL', `${window.location.origin}/payment-complete`)
   appendHiddenInput(form, 'pay_method', '100000000000')
