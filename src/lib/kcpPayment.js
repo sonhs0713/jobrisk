@@ -15,6 +15,19 @@ function appendHiddenInput(form, name, value) {
   form.appendChild(input)
 }
 
+function isScriptLoaded(scriptElement) {
+  if (!scriptElement) return false
+  if (scriptElement.dataset.loaded === 'true') return true
+  return scriptElement.readyState === 'loaded' || scriptElement.readyState === 'complete'
+}
+
+function isKcpRuntimeReady() {
+  return (
+    typeof window.KCP_Pay_Execute_Web === 'function' &&
+    typeof window.chkAvailablePostMessage === 'function'
+  )
+}
+
 function ensureKcpScript(scriptUrl) {
   return new Promise((resolve, reject) => {
     if (canUseKcpPopupExecute()) {
@@ -24,6 +37,10 @@ function ensureKcpScript(scriptUrl) {
 
     const existing = document.querySelector(`script[data-kcp-script="true"]`)
     if (existing) {
+      if (isScriptLoaded(existing)) {
+        resolve()
+        return
+      }
       existing.addEventListener('load', () => resolve(), { once: true })
       existing.addEventListener('error', () => reject(new Error('KCP 스크립트 로드에 실패했습니다.')), {
         once: true,
@@ -35,7 +52,10 @@ function ensureKcpScript(scriptUrl) {
     script.src = scriptUrl
     script.async = true
     script.dataset.kcpScript = 'true'
-    script.onload = () => resolve()
+    script.onload = () => {
+      script.dataset.loaded = 'true'
+      resolve()
+    }
     script.onerror = () => reject(new Error('KCP 스크립트 로드에 실패했습니다.'))
     document.head.appendChild(script)
   })
@@ -46,7 +66,7 @@ function waitForKcpExecuteReady(timeoutMs = 10000, intervalMs = 100) {
     const startedAt = Date.now()
 
     const timer = window.setInterval(() => {
-      if (canUseKcpPopupExecute()) {
+      if (isKcpRuntimeReady()) {
         window.clearInterval(timer)
         resolve()
         return
@@ -107,6 +127,12 @@ export async function requestEarlyBirdPayment(customerEmail) {
       window.KCP_Pay_Execute_Web(form)
       return
     } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (message.includes('chkAvailablePostMessage')) {
+        await waitForKcpExecuteReady(4000, 80)
+        window.KCP_Pay_Execute_Web(form)
+        return
+      }
       const detail = error instanceof Error && error.message ? ` (${error.message})` : ''
       throw new Error(`KCP 결제창 실행에 실패했습니다. 스크립트 설정을 확인해주세요.${detail}`)
     }
