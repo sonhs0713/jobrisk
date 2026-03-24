@@ -21,11 +21,13 @@ function PaymentComplete() {
       }
 
       const params = new URLSearchParams(location.search)
-      const orderId = params.get('orderId')
-      const amount = params.get('amount')
-      const paymentKey = params.get('paymentKey')
+      const orderId =
+        params.get('orderId') || params.get('ordr_idxx') || sessionStorage.getItem('earlybird_order_id')
+      const amount =
+        params.get('amount') || params.get('good_mny') || sessionStorage.getItem('earlybird_amount')
+      const transactionId = params.get('paymentKey') || params.get('tno') || ''
 
-      if (!orderId || !amount || !paymentKey) {
+      if (!orderId || !amount) {
         setErrorMessage('결제 완료 정보를 확인할 수 없습니다.')
         return
       }
@@ -42,6 +44,7 @@ function PaymentComplete() {
       formData.append('paymentCompletedAt', paymentCompletedAt)
       formData.append('amount', amount)
       formData.append('orderId', orderId)
+      formData.append('transactionId', transactionId)
       formData.append('jobPostingText', jobPostingText)
       formData.append('additionalRequest', additionalRequest)
 
@@ -59,6 +62,8 @@ function PaymentComplete() {
         }
 
         sessionStorage.removeItem('earlybird_customer_email')
+        sessionStorage.removeItem('earlybird_order_id')
+        sessionStorage.removeItem('earlybird_amount')
         sessionStorage.removeItem('earlybird_job_posting_text')
         sessionStorage.removeItem('earlybird_additional_request')
         navigate('/thank-you', { replace: true })

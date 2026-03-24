@@ -10,7 +10,7 @@ import FAQ from './components/FAQ'
 import Contact from './components/Contact'
 import EmailModal from './components/EmailModal'
 import Footer from './components/Footer'
-import { requestEarlyBirdPayment } from './lib/tossPayment'
+import { requestEarlyBirdPayment } from './lib/kcpPayment'
 
 function App() {
   const [isPaying, setIsPaying] = useState(false)
