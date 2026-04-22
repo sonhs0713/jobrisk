@@ -17,7 +17,6 @@ function Hero({ onPayClick }) {
           내 커리어 지키기 (얼리버드 3,000원)
         </button>
         <div className="hero-meta">
-          <p className="hero-limited-text">⚡ 얼리버드 20명 한정 · 현재 [N]명 등록 완료</p>
           <p className="hero-refund-note">
             리포트를 받으시기 전에는 전액 환불 가능합니다.
             <br />

@@ -6,7 +6,6 @@ function Pricing({ onPayClick, isPaying }) {
       <div className="pricing-card">
         <div className="pricing-meta">
           <p className="pricing-launch-text">🕐 얼리버드 20명 등록 완료 시 즉시 오픈 예정</p>
-          <p className="pricing-limited-text">⚡ 얼리버드 20명 한정 · 현재 [N]명 등록 완료</p>
         </div>
         <p className="pricing-early">3,000원</p>
         <p className="pricing-regular">
