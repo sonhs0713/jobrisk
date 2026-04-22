@@ -108,7 +108,8 @@ export async function requestEarlyBirdPayment(customerEmail) {
   form.name = 'order_info'
   form.method = 'POST'
   form.acceptCharset = 'utf-8'
-  form.action = window.location.href
+  // KCP 결제 결과 콜백을 받을 서버 엔드포인트입니다.
+  form.action = `${window.location.origin}/api/kcp/return`
   form.style.display = 'none'
 
   appendHiddenInput(form, 'site_cd', siteCode)
