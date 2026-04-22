@@ -10,6 +10,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
   const [email, setEmail] = useState('')
   const [touched, setTouched] = useState({
     jobPostingText: false,
+    additionalRequest: false,
     email: false,
   })
   const [submitError, setSubmitError] = useState('')
@@ -17,6 +18,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
   const errors = useMemo(() => {
     const nextErrors = {
       jobPostingText: '',
+      additionalRequest: '',
       email: '',
     }
 
@@ -24,18 +26,22 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
       nextErrors.jobPostingText = '채용공고를 입력해주세요'
     }
 
+    if (!additionalRequest.trim()) {
+      nextErrors.additionalRequest = '기타 요구사항을 입력해주세요'
+    }
+
     if (!email.trim() || !isValidEmail(email.trim())) {
       nextErrors.email = '올바른 이메일 주소를 입력해주세요'
     }
 
     return nextErrors
-  }, [email, jobPostingText])
+  }, [additionalRequest, email, jobPostingText])
 
   const isFormValid = !errors.jobPostingText && !errors.email
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    setTouched({ jobPostingText: true, email: true })
+    setTouched({ jobPostingText: true, additionalRequest: true, email: true })
     setSubmitError('')
 
     if (!isFormValid) return
@@ -88,7 +94,11 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
 예) 현재 경력 3년차 마케터, 야근 없는 곳 원함, 연봉 4천만원 이상 희망`}
           value={additionalRequest}
           onChange={(event) => setAdditionalRequest(event.target.value)}
+          onBlur={() => setTouched((prev) => ({ ...prev, additionalRequest: true }))}
         />
+        {touched.additionalRequest && errors.additionalRequest ? (
+          <p className="contact-error">{errors.additionalRequest}</p>
+        ) : null}
 
         <label className="contact-label" htmlFor="job-input-email">
           이메일
@@ -108,10 +118,10 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
 
         <button
           type="submit"
-          className="hero-button job-input-submit"
+          className={`hero-button job-input-submit${isPaying ? ' is-paying' : ''}`}
           disabled={isPaying || !isFormValid}
         >
-          {isPaying ? '결제창 여는 중...' : '결제하고 분석 받기 (3,000원)'}
+          {isPaying ? '결제창 여는 중...' : '내 커리어 리스크 진단받기(3,000원)'}
         </button>
       </form>
     </section>
