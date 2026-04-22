@@ -37,7 +37,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
     return nextErrors
   }, [additionalRequest, email, jobPostingText])
 
-  const isFormValid = !errors.jobPostingText && !errors.email
+  const isFormValid = !errors.jobPostingText && !errors.additionalRequest && !errors.email
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -119,7 +119,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
         <button
           type="submit"
           className={`hero-button job-input-submit${isPaying ? ' is-paying' : ''}`}
-          disabled={isPaying || !isFormValid}
+          disabled={isPaying}
         >
           {isPaying ? '결제창 여는 중...' : '내 커리어 리스크 진단받기(3,000원)'}
         </button>
