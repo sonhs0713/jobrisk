@@ -110,9 +110,7 @@ function App() {
         <div className="hero-eyebrow">AI 채용공고 리스크 분석</div>
         <h1 className="hero-title">
           <span className="line-muted">입사 전에 알았더라면...</span>
-          면접장에서 처음으로
-          <br />
-          <span className="highlight">주도권을 쥐세요</span>
+          입사 후 후회, 입사 전에 막으세요
         </h1>
         <p className="hero-sub">
           채용공고에 숨겨진 <span className="keyword-highlight">물경력</span>·야근·

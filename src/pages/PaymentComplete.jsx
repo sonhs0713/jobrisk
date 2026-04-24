@@ -21,11 +21,30 @@ function PaymentComplete() {
       }
 
       const params = new URLSearchParams(location.search)
+      const resultCode = params.get('res_cd')
+      const resultMessage = params.get('res_msg') || ''
+      const transactionId = params.get('paymentKey') || params.get('tno') || ''
+
+      if (resultCode && resultCode !== '0000') {
+        const failQuery = new URLSearchParams()
+        failQuery.set('res_cd', resultCode)
+        if (resultMessage) failQuery.set('res_msg', resultMessage)
+        navigate(`/payment-fail?${failQuery.toString()}`, { replace: true })
+        return
+      }
+
+      if (!transactionId) {
+        const failQuery = new URLSearchParams()
+        failQuery.set('res_cd', resultCode || 'NO_TNO')
+        failQuery.set('res_msg', resultMessage || '승인번호(tno)를 확인할 수 없습니다.')
+        navigate(`/payment-fail?${failQuery.toString()}`, { replace: true })
+        return
+      }
+
       const orderId =
         params.get('orderId') || params.get('ordr_idxx') || sessionStorage.getItem('earlybird_order_id')
       const amount =
         params.get('amount') || params.get('good_mny') || sessionStorage.getItem('earlybird_amount')
-      const transactionId = params.get('paymentKey') || params.get('tno') || ''
 
       if (!orderId || !amount) {
         setErrorMessage('결제 완료 정보를 확인할 수 없습니다.')

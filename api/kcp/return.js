@@ -54,7 +54,8 @@ export default async function handler(req, res) {
       : new URLSearchParams(await readBody(req))
 
   const resultCode = payloadParams.get('res_cd')
-  const isSuccess = !resultCode || resultCode === '0000'
+  const transactionId = payloadParams.get('tno')
+  const isSuccess = resultCode === '0000' && Boolean(transactionId)
   const path = isSuccess ? '/payment-complete' : '/payment-fail'
   const forward = pickForwardParams(payloadParams).toString()
   const nextUrl = `${getBaseUrl(req)}${path}${forward ? `?${forward}` : ''}`
