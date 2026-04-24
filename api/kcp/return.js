@@ -57,7 +57,19 @@ export default async function handler(req, res) {
   const transactionId = payloadParams.get('tno')
   const isSuccess = resultCode === '0000' && Boolean(transactionId)
   const path = isSuccess ? '/payment-complete' : '/payment-fail'
-  const forward = pickForwardParams(payloadParams).toString()
+  const forwardParams = pickForwardParams(payloadParams)
+
+  if (!isSuccess) {
+    if (!resultCode) {
+      forwardParams.set('res_cd', 'NO_RES_CD')
+      forwardParams.set('res_msg', 'KCP 응답코드(res_cd)가 전달되지 않았습니다.')
+    } else if (resultCode === '0000' && !transactionId) {
+      forwardParams.set('res_cd', 'NO_TNO')
+      forwardParams.set('res_msg', 'KCP 승인번호(tno)가 전달되지 않았습니다.')
+    }
+  }
+
+  const forward = forwardParams.toString()
   const nextUrl = `${getBaseUrl(req)}${path}${forward ? `?${forward}` : ''}`
 
   res.writeHead(303, { Location: nextUrl })

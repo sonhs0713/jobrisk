@@ -1192,75 +1192,50 @@ span {
 }
 
 .landing-page .hero-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: var(--accent);
+  color: #9ea8ba;
   font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 100px;
-  margin-bottom: 32px;
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  margin-bottom: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   animation: fadeUp 0.6s ease both;
 }
 
 .landing-page .hero-title {
-  font-size: clamp(36px, 7vw, 72px);
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  margin-bottom: 28px;
+  font-size: clamp(34px, 6.2vw, 64px);
+  font-weight: 850;
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+  max-width: 920px;
+  margin-bottom: 26px;
   animation: fadeUp 0.6s 0.1s ease both;
 }
 
-.landing-page .hero-title .line-muted {
-  color: var(--text-muted);
-  display: block;
-  font-size: 0.75em;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  margin-bottom: 8px;
-}
-
-.landing-page .hero-title .highlight {
-  color: var(--accent);
-  position: relative;
-  display: inline-block;
-}
-
 .landing-page .hero-sub {
-  font-size: clamp(16px, 2.5vw, 20px);
+  font-size: clamp(17px, 2.2vw, 22px);
   color: var(--text-secondary);
-  max-width: 540px;
-  margin: 0 auto 18px;
+  max-width: 760px;
+  margin: 0 auto 48px;
   animation: fadeUp 0.6s 0.2s ease both;
-  line-height: 1.9;
-  letter-spacing: 0.01em;
-}
-
-.landing-page .keyword-highlight {
-  color: var(--accent);
-  font-weight: 700;
-  text-shadow: 0 0 18px rgba(250, 204, 21, 0.22);
-}
-
-.landing-page .hero-oneliner {
-  font-size: 17px;
-  color: #b5bfd0;
-  font-weight: 500;
-  margin-bottom: 46px;
-  animation: fadeUp 0.6s 0.25s ease both;
+  line-height: 1.7;
+  letter-spacing: -0.005em;
 }
 
 .landing-page .hero-cta-group {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   animation: fadeUp 0.6s 0.3s ease both;
+}
+
+.landing-page .hero-main-cta {
+  font-size: 19px;
+  font-weight: 800;
+  padding: 20px 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.62);
+  box-shadow: 0 14px 36px rgba(250, 204, 21, 0.3);
 }
 
 .landing-page .btn-primary {
@@ -1297,9 +1272,11 @@ span {
 }
 
 .landing-page .btn-price-note {
-  font-size: 15px;
-  color: #bcc6d8;
-  line-height: 1.7;
+  font-size: 13px;
+  color: #95a1b5;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  font-weight: 500;
 }
 
 .landing-page .btn-price-note strong {

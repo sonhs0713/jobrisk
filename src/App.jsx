@@ -107,39 +107,22 @@ function App() {
       </nav>
 
       <section className="hero">
-        <div className="hero-eyebrow">AI 채용공고 리스크 분석</div>
+        <div className="hero-eyebrow">이직 실패 방지 리포트</div>
         <h1 className="hero-title">
-          <span className="line-muted">입사 전에 알았더라면...</span>
-          입사 후 후회, 입사 전에 막으세요
+          좋은 공고인 줄 알았는데,
+          <br />
+          입사하니 블랙기업이라면?
         </h1>
         <p className="hero-sub">
-          채용공고에 숨겨진 <span className="keyword-highlight">물경력</span>·야근·
-          <span className="keyword-highlight">연봉 함정</span>을
-          <br />
-          AI가 먼저 찾아드립니다
+          채용공고 속 위험 신호를 AI로 먼저 찾아내고, 후회 없는 이직을 준비하세요.
         </p>
-        <p className="hero-oneliner">이직을 고민하는 직장인을 위한 커리어 리스크 진단 서비스</p>
         <div className="hero-cta-group">
-          <a href="#form" className="btn-primary">
-            내 커리어 리스크 진단받기 →
+          <a href="#form" className="btn-primary hero-main-cta">
+            리스크 진단받고 안전하게 이직하기 →
           </a>
           <span className="btn-price-note">
-            얼리버드 <strong>3,000원</strong> · 리포트 받기 전 전액 환불 가능
+            얼리버드 3,000원 · 리포트 받기 전 전액 환불
           </span>
-        </div>
-        <div className="hero-social-proof">
-          <div className="proof-item">
-            <div className="proof-dot" />
-            물경력 위험도 분석
-          </div>
-          <div className="proof-item">
-            <div className="proof-dot" />
-            적정 연봉 추정
-          </div>
-          <div className="proof-item">
-            <div className="proof-dot" />
-            면접 필수 질문 제공
-          </div>
         </div>
       </section>
 
