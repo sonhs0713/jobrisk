@@ -76,6 +76,63 @@ function parseApprovalResponse(bodyText) {
   return {}
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function collectScalarMap(value, target = {}, depth = 0) {
+  if (depth > 4 || !isRecord(value)) return target
+
+  Object.entries(value).forEach(([key, raw]) => {
+    if (raw === undefined || raw === null) return
+
+    if (isRecord(raw)) {
+      collectScalarMap(raw, target, depth + 1)
+      return
+    }
+
+    if (Array.isArray(raw)) {
+      raw.forEach((entry) => {
+        if (isRecord(entry)) collectScalarMap(entry, target, depth + 1)
+      })
+      return
+    }
+
+    if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+      const normalized = key.toLowerCase()
+      if (!(normalized in target)) target[normalized] = String(raw)
+    }
+  })
+
+  return target
+}
+
+function pickNormalizedValue(map, keys) {
+  for (const key of keys) {
+    const value = map[key.toLowerCase()]
+    if (typeof value !== 'undefined' && value !== null && String(value).trim() !== '') {
+      return String(value)
+    }
+  }
+  return ''
+}
+
+function extractApprovalFields(parsed, fallback = {}) {
+  const normalized = collectScalarMap(parsed)
+
+  const resCd = pickNormalizedValue(normalized, ['res_cd', 'rescode', 'response_code', 'code']) || fallback.res_cd || ''
+  const resMsg =
+    pickNormalizedValue(normalized, ['res_msg', 'resmessage', 'response_message', 'message']) || fallback.res_msg || ''
+  const tno = pickNormalizedValue(normalized, ['tno', 'transaction_no', 'tran_no', 'tx_no']) || fallback.tno || ''
+  const amount = pickNormalizedValue(normalized, ['amount', 'good_mny', 'card_mny']) || fallback.good_mny || ''
+  const payMethod =
+    pickNormalizedValue(normalized, ['pay_method', 'pay_type', 'payment_method']) || fallback.pay_method || ''
+  const orderNo =
+    pickNormalizedValue(normalized, ['order_no', 'ordr_no', 'ordr_idxx', 'orderid']) || fallback.order_no || ''
+
+  return { res_cd: resCd, res_msg: resMsg, tno, good_mny: amount, pay_method: payMethod, order_no: orderNo, normalized }
+}
+
 async function requestApproval(payloadParams) {
   const approvalUrl = process.env.KCP_APPROVAL_URL
   const certInfo = process.env.KCP_CERT_INFO
@@ -120,8 +177,13 @@ async function requestApproval(payloadParams) {
 
     const rawText = await response.text()
     const parsed = parseApprovalResponse(rawText)
-    const resultCode = parsed.res_cd || ''
-    const resultMessage = parsed.res_msg || ''
+    const extracted = extractApprovalFields(parsed, {
+      good_mny: String(orderAmount),
+      pay_method: payType,
+      order_no: String(orderNo),
+    })
+    const resultCode = extracted.res_cd || ''
+    const resultMessage = extracted.res_msg || ''
 
     if (!response.ok) {
       return {
@@ -132,13 +194,17 @@ async function requestApproval(payloadParams) {
     }
 
     return {
-      ok: resultCode === '0000' && Boolean(parsed.tno),
+      ok: resultCode === '0000' && Boolean(extracted.tno),
       res_cd: resultCode || 'NO_RES_CD',
-      res_msg: resultMessage || '승인 응답코드가 없습니다.',
-      tno: parsed.tno || '',
-      good_mny: parsed.amount || String(orderAmount),
-      pay_method: parsed.pay_method || payType,
-      order_no: parsed.order_no || String(orderNo),
+      res_msg:
+        resultMessage ||
+        (resultCode === '0000' && !extracted.tno
+          ? `승인번호를 찾지 못했습니다. 응답 키: ${Object.keys(extracted.normalized).join(', ')}`
+          : '승인 응답코드가 없습니다.'),
+      tno: extracted.tno,
+      good_mny: extracted.good_mny,
+      pay_method: extracted.pay_method,
+      order_no: extracted.order_no,
     }
   } catch (error) {
     return {
