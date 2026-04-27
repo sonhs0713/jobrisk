@@ -39,6 +39,27 @@ function pickValue(map, keys) {
   return ''
 }
 
+function getByPath(obj, path) {
+  const keys = String(path || '').split('.')
+  let current = obj
+  for (const key of keys) {
+    if (!current || typeof current !== 'object' || !(key in current)) return undefined
+    current = current[key]
+  }
+  return current
+}
+
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[,\s]/g, '').trim()
+    if (!normalized) return NaN
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : NaN
+  }
+  return NaN
+}
+
 async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body
   if (typeof req.body === 'string') return JSON.parse(req.body || '{}')
@@ -54,11 +75,20 @@ async function readJsonBody(req) {
 
 function parsePortOneResponse(payload) {
   const normalized = collectScalarMap(payload)
+  const amountFromPath =
+    getByPath(payload, 'amount.total') ??
+    getByPath(payload, 'amount.paid') ??
+    getByPath(payload, 'paidAmount') ??
+    getByPath(payload, 'payment.amount.total')
+
   return {
-    status: pickValue(normalized, ['status', 'payment_status']),
-    orderId: pickValue(normalized, ['order_id', 'orderid', 'merchant_uid']),
-    amount: pickValue(normalized, ['total_amount', 'amount', 'paid_amount']),
-    transactionId: pickValue(normalized, ['transaction_id', 'tx_id', 'pg_tx_id']),
+    status: pickValue(normalized, ['status', 'payment_status', 'state']),
+    orderId: pickValue(normalized, ['order_id', 'orderid', 'merchant_uid', 'merchantid', 'customid']),
+    amount:
+      typeof amountFromPath !== 'undefined'
+        ? String(amountFromPath)
+        : pickValue(normalized, ['total_amount', 'amount', 'paid_amount', 'paidamount', 'total']),
+    transactionId: pickValue(normalized, ['transaction_id', 'tx_id', 'pg_tx_id', 'pgtxid', 'transactionid']),
   }
 }
 
@@ -90,7 +120,7 @@ export default async function handler(req, res) {
 
   const paymentId = String(payload?.paymentId || '').trim()
   const expectedOrderId = String(payload?.orderId || '').trim()
-  const expectedAmount = Number(payload?.amount)
+  const expectedAmount = toNumber(payload?.amount)
 
   if (!paymentId || !expectedOrderId || !Number.isFinite(expectedAmount)) {
     res.status(400).json({
@@ -139,7 +169,7 @@ export default async function handler(req, res) {
   }
 
   const parsed = parsePortOneResponse(paymentData)
-  const actualAmount = Number(parsed.amount)
+  const actualAmount = toNumber(parsed.amount)
   const isPaidStatus = String(parsed.status).toUpperCase() === 'PAID'
 
   if (!isPaidStatus) {
@@ -162,12 +192,14 @@ export default async function handler(req, res) {
     return
   }
 
-  if (!Number.isFinite(actualAmount) || actualAmount !== expectedAmount) {
+  const expectedAmountInt = Math.round(expectedAmount)
+  const actualAmountInt = Math.round(actualAmount)
+  if (!Number.isFinite(actualAmountInt) || actualAmountInt !== expectedAmountInt) {
     res.status(400).json({
       ok: false,
       isPaid: false,
       code: 'AMOUNT_MISMATCH',
-      message: '결제 금액이 일치하지 않습니다.',
+      message: `결제 금액이 일치하지 않습니다. expected=${expectedAmountInt}, actual=${Number.isFinite(actualAmountInt) ? actualAmountInt : 'NaN'}`,
     })
     return
   }
@@ -179,7 +211,7 @@ export default async function handler(req, res) {
     message: '결제 검증이 완료되었습니다.',
     paymentId,
     orderId: parsed.orderId || expectedOrderId,
-    amount: actualAmount,
+    amount: actualAmountInt,
     transactionId: parsed.transactionId || paymentId,
     status: parsed.status,
   })
