@@ -21,33 +21,44 @@ function PaymentComplete() {
       }
 
       const params = new URLSearchParams(location.search)
-      const resultCode = params.get('res_cd')
-      const resultMessage = params.get('res_msg') || ''
-      const transactionId = params.get('paymentKey') || params.get('tno') || ''
+      const paymentId = params.get('paymentId') || sessionStorage.getItem('earlybird_payment_id') || ''
+      const orderId = params.get('orderId') || sessionStorage.getItem('earlybird_order_id') || ''
+      const amount = params.get('amount') || sessionStorage.getItem('earlybird_amount') || ''
 
-      if (resultCode && resultCode !== '0000') {
+      if (!paymentId || !orderId || !amount) {
+        setErrorMessage('결제 확인 정보가 누락되었습니다. 다시 시도해주세요.')
+        return
+      }
+
+      let verified
+      try {
+        const verifyResponse = await fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            paymentId,
+            orderId,
+            amount: Number(amount),
+          }),
+        })
+
+        verified = await verifyResponse.json()
+      } catch {
         const failQuery = new URLSearchParams()
-        failQuery.set('res_cd', resultCode)
-        if (resultMessage) failQuery.set('res_msg', resultMessage)
+        failQuery.set('res_cd', 'VERIFY_REQUEST_FAILED')
+        failQuery.set('res_msg', '결제 검증 요청에 실패했습니다.')
         navigate(`/payment-fail?${failQuery.toString()}`, { replace: true })
         return
       }
 
-      if (!transactionId) {
+      if (!verified?.ok || !verified?.isPaid) {
         const failQuery = new URLSearchParams()
-        failQuery.set('res_cd', resultCode || 'NO_TNO')
-        failQuery.set('res_msg', resultMessage || '승인번호(tno)를 확인할 수 없습니다.')
+        failQuery.set('res_cd', verified?.code || 'VERIFY_FAILED')
+        failQuery.set('res_msg', verified?.message || '결제 검증에 실패했습니다.')
         navigate(`/payment-fail?${failQuery.toString()}`, { replace: true })
-        return
-      }
-
-      const orderId =
-        params.get('orderId') || params.get('ordr_idxx') || sessionStorage.getItem('earlybird_order_id')
-      const amount =
-        params.get('amount') || params.get('good_mny') || sessionStorage.getItem('earlybird_amount')
-
-      if (!orderId || !amount) {
-        setErrorMessage('결제 완료 정보를 확인할 수 없습니다.')
         return
       }
 
@@ -61,9 +72,10 @@ function PaymentComplete() {
       formData.append('_subject', '[muno] 결제 완료 및 분석 요청')
       formData.append('email', email)
       formData.append('paymentCompletedAt', paymentCompletedAt)
-      formData.append('amount', amount)
-      formData.append('orderId', orderId)
-      formData.append('transactionId', transactionId)
+      formData.append('amount', String(verified.amount || amount))
+      formData.append('orderId', String(verified.orderId || orderId))
+      formData.append('transactionId', String(verified.transactionId || paymentId))
+      formData.append('paymentId', String(paymentId))
       formData.append('jobPostingText', jobPostingText)
       formData.append('additionalRequest', additionalRequest)
 
@@ -81,6 +93,7 @@ function PaymentComplete() {
         }
 
         sessionStorage.removeItem('earlybird_customer_email')
+        sessionStorage.removeItem('earlybird_payment_id')
         sessionStorage.removeItem('earlybird_order_id')
         sessionStorage.removeItem('earlybird_amount')
         sessionStorage.removeItem('earlybird_job_posting_text')

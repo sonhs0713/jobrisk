@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import Footer from './components/Footer'
-import { requestEarlyBirdPayment } from './lib/kcpPayment'
+import { requestEarlyBirdPayment } from './lib/portonePayment'
 
 function App() {
   const [isPaying, setIsPaying] = useState(false)
