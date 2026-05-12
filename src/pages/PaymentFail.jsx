@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 function PaymentFail() {
   const location = useLocation()
@@ -20,6 +21,14 @@ function PaymentFail() {
           {resultCode ? ` (코드: ${resultCode})` : ''}
         </p>
         {resultMessage ? <p className="status-description">{resultMessage}</p> : null}
+        <div style={{ marginTop: 24, display: 'grid', gap: 10, justifyItems: 'center' }}>
+          <Link to="/#result" className="hero-button status-home-button">
+            이전 결과로 돌아가기
+          </Link>
+          <Link to="/#form" className="terms-back-link">
+            다시 입력하기
+          </Link>
+        </div>
       </div>
     </main>
   )

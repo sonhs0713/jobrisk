@@ -1,51 +1,229 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Footer from './components/Footer'
 import { requestEarlyBirdPayment } from './lib/portonePayment'
+
+const AVOID_RISK_OPTIONS = [
+  '물경력',
+  '야근 많음',
+  '업무 범위 불명확',
+  '성장 압박 심함',
+  '평가 기준 불명확',
+  '급여/보상 불투명',
+  '수습/계약 조건 불리함',
+  '잦은 잡무 가능성',
+]
+
+const EXCLUDED_AVOID_RISK_TAGS = new Set(['복지 과장', '출퇴근/근무 방식 불일치'])
+
+function buildFallbackPreviewEmail() {
+  return `preview-user-${Date.now()}@jobrisk.local`
+}
+
+function toEvidenceText(e) {
+  if (!e) return ''
+  if (typeof e === 'string') return e
+  if (typeof e === 'object' && 'text' in e) return String(e.text || '')
+  return ''
+}
+
+function toEvidenceSourceType(e) {
+  if (e && typeof e === 'object' && 'sourceType' in e) return String(e.sourceType || '')
+  return ''
+}
+
+function levelLabel(level) {
+  if (level === 'high') return '높음'
+  if (level === 'medium') return '중간'
+  if (level === 'low') return '낮음'
+  return '추가 확인 필요'
+}
+
+function levelHelp(level) {
+  if (level === 'high') return '공고 근거상 충돌 가능성이 큼'
+  if (level === 'medium') return '일부 신호가 있으나 추가 확인 필요'
+  if (level === 'low') return '현재 공고 기준 충돌 신호가 크지 않음'
+  return '공고만으로는 판단 근거가 부족함'
+}
+
+function toFirstSentence(text) {
+  const s = String(text || '').trim()
+  if (!s) return ''
+  const idx = s.indexOf('. ')
+  if (idx !== -1) return s.slice(0, idx + 1)
+  const idx2 = s.indexOf('다.')
+  if (idx2 !== -1 && idx2 < 120) return s.slice(0, idx2 + 2)
+  return s.length > 120 ? `${s.slice(0, 120)}…` : s
+}
+
+function agentDebugLog({ runId, hypothesisId, location, message, data }) {
+  // #region agent log
+  fetch('http://127.0.0.1:7579/ingest/be5faab1-4bf7-4191-81cc-c89d7a00a55b', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'dc5642' },
+    body: JSON.stringify({
+      sessionId: 'dc5642',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
+}
 
 function App() {
   const [isPaying, setIsPaying] = useState(false)
   const [jobPostingText, setJobPostingText] = useState('')
+  const [avoidRiskTags, setAvoidRiskTags] = useState([])
   const [additionalRequest, setAdditionalRequest] = useState('')
-  const [jobEmail, setJobEmail] = useState('')
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false)
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewResult, setPreviewResult] = useState(null)
   const [contactSubmitted, setContactSubmitted] = useState(false)
   const [isContactSubmitting, setIsContactSubmitting] = useState(false)
   const [contactErrorMessage, setContactErrorMessage] = useState('')
   const [jobSubmitError, setJobSubmitError] = useState('')
   const [openFaqIndex, setOpenFaqIndex] = useState(0)
+  const resultSectionRef = useRef(null)
 
   const jobFormErrors = useMemo(() => {
     const errors = {
       jobPostingText: '',
-      email: '',
+      avoidRiskTags: '',
     }
 
     if (!jobPostingText.trim()) {
-      errors.jobPostingText = '채용공고 텍스트를 입력해주세요.'
+      errors.jobPostingText = '채용공고 텍스트 또는 URL을 입력해주세요.'
     }
 
-    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(jobEmail.trim())
-    if (!jobEmail.trim() || !isEmailValid) {
-      errors.email = '올바른 이메일을 입력해주세요.'
+    const filteredTags = avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))
+    if (filteredTags.length === 0) {
+      errors.avoidRiskTags = '피하고 싶은 조건을 1개 이상 선택해주세요.'
     }
 
     return errors
-  }, [jobEmail, jobPostingText])
+  }, [avoidRiskTags, jobPostingText])
 
-  const isJobFormValid = !jobFormErrors.jobPostingText && !jobFormErrors.email
+  const isJobFormValid =
+    !jobFormErrors.jobPostingText && !jobFormErrors.avoidRiskTags
 
-  const handleJobFormPayment = async (event) => {
+  const toggleAvoidRiskTag = (tag) => {
+    if (EXCLUDED_AVOID_RISK_TAGS.has(tag)) return
+    setAvoidRiskTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const unlockedParam = params.get('unlocked')
+    const unlockedFlag = sessionStorage.getItem('earlybird_unlocked')
+
+    if (unlockedParam === '1' || unlockedFlag === '1') {
+      setIsUnlocked(true)
+      setIsPreviewVisible(true)
+      setPaymentSuccessMessage('결제가 완료되어 전체 결과가 열렸어요. 아래에서 바로 확인할 수 있어요.')
+      sessionStorage.removeItem('earlybird_unlocked')
+      setTimeout(() => {
+        resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+    }
+  }, [])
+
+  const handleJobFormPreview = (event) => {
     event.preventDefault()
     setJobSubmitError('')
 
     if (!isJobFormValid) return
 
+    setIsPreviewVisible(true)
+    setPaymentSuccessMessage('')
+    setPreviewLoading(true)
+    setPreviewResult(null)
+    setTimeout(() => {
+      resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+
+    ;(async () => {
+      try {
+        agentDebugLog({
+          runId: 'pre-fix',
+          hypothesisId: 'H1',
+          location: 'src/App.jsx:pre_fetch_preview',
+          message: 'Preview analyze fetch starting',
+          data: {
+            path: '/api/preview/analyze',
+            jobPostingTextLen: jobPostingText.trim().length,
+            avoidRiskTagsCount: avoidRiskTags.length,
+          },
+        })
+        const response = await fetch('/api/preview/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            jobPostingText: jobPostingText.trim(),
+            avoidRiskTags: avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t)),
+          }),
+        })
+        agentDebugLog({
+          runId: 'pre-fix',
+          hypothesisId: 'H1',
+          location: 'src/App.jsx:post_fetch_preview',
+          message: 'Preview analyze fetch completed',
+          data: {
+            status: response.status,
+            ok: response.ok,
+            contentType: response.headers.get('content-type') || '',
+          },
+        })
+        const data = await response.json()
+        if (!response.ok || !data?.ok || !data?.result) {
+          throw new Error('preview_failed')
+        }
+        setPreviewResult(data.result)
+      } catch {
+        agentDebugLog({
+          runId: 'pre-fix',
+          hypothesisId: 'H2',
+          location: 'src/App.jsx:catch_preview',
+          message: 'Preview analyze failed (caught)',
+          data: {},
+        })
+        // 내부 오류는 노출하지 않고, 화면에는 fallback 결과가 없을 경우만 안내
+        setPreviewResult(null)
+      } finally {
+        setPreviewLoading(false)
+      }
+    })()
+  }
+
+  const handleStartPayment = async () => {
+    setJobSubmitError('')
+
+    if (!isJobFormValid) return
+
+    const mappedAdditionalRequest = [
+      `피하고 싶은 조건: ${avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t)).join(', ')}`,
+      additionalRequest.trim() ? `추가 요청: ${additionalRequest.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    // TODO: 결제 전 이메일은 필수로 받지 않습니다. 결제 후 옵션으로 이메일 전달을 제공합니다.
+    const customerEmailForPayment = buildFallbackPreviewEmail()
+
     sessionStorage.setItem('earlybird_job_posting_text', jobPostingText.trim())
-    sessionStorage.setItem('earlybird_additional_request', additionalRequest.trim())
-    sessionStorage.setItem('earlybird_customer_email', jobEmail.trim())
+    sessionStorage.setItem('earlybird_additional_request', mappedAdditionalRequest)
+    sessionStorage.setItem('earlybird_customer_email', customerEmailForPayment)
 
     try {
       setIsPaying(true)
-      await requestEarlyBirdPayment(jobEmail.trim())
+      await requestEarlyBirdPayment(customerEmailForPayment)
     } catch (error) {
       setJobSubmitError(error?.message || '결제 진행 중 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
@@ -381,18 +559,18 @@ function App() {
           붙여넣어 주세요
         </h2>
         <p className="form-intro-note">
-          결제 후 1시간 이내 리포트를 이메일로 보내드립니다 (평일 10시~18시)
+          무료 미리보기 입력은 2가지만 필수로 받습니다: 공고, 피하고 싶은 조건
         </p>
         <div className="form-card">
-          <form onSubmit={handleJobFormPayment}>
+          <form onSubmit={handleJobFormPreview}>
             <div className="form-group">
               <label className="form-label" htmlFor="job-posting-text">
-                채용공고 텍스트
+                채용공고 텍스트 또는 URL
               </label>
               <textarea
                 id="job-posting-text"
                 className="form-textarea"
-                placeholder="분석받고 싶은 채용공고를 붙여넣어 주세요"
+                placeholder="공고 본문을 붙여넣거나 URL을 입력해주세요"
                 value={jobPostingText}
                 onChange={(event) => setJobPostingText(event.target.value)}
                 style={{ minHeight: '200px' }}
@@ -400,43 +578,256 @@ function App() {
               {jobFormErrors.jobPostingText ? <p className="contact-error">{jobFormErrors.jobPostingText}</p> : null}
             </div>
             <div className="form-group">
+              <p className="form-label">피하고 싶은 조건</p>
+              <div className="chip-group" role="group" aria-label="피하고 싶은 조건 선택">
+                {AVOID_RISK_OPTIONS.map((option) => {
+                  const isSelected = avoidRiskTags.includes(option)
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`chip-button${isSelected ? ' is-selected' : ''}`}
+                      aria-pressed={isSelected}
+                      onClick={() => toggleAvoidRiskTag(option)}
+                    >
+                      {option}
+                    </button>
+                  )
+                })}
+              </div>
+              {jobFormErrors.avoidRiskTags ? <p className="contact-error">{jobFormErrors.avoidRiskTags}</p> : null}
+            </div>
+            <div className="form-group">
               <label className="form-label" htmlFor="additional-request">
-                기타 요구사항 <span className="optional">선택</span>
+                추가 요청사항 <span className="optional">선택</span>
               </label>
               <textarea
                 id="additional-request"
                 className="form-textarea"
-                placeholder="예) 현재 경력 3년차 마케터, 야근 없는 곳 원함, 연봉 4천만원 이상 희망"
+                placeholder="예) 피하고 싶은 팀 문화, 산업군, 꼭 확인하고 싶은 포인트"
                 value={additionalRequest}
                 onChange={(event) => setAdditionalRequest(event.target.value)}
               />
             </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="job-input-email">
-                이메일
-              </label>
-              <input
-                id="job-input-email"
-                type="email"
-                className="form-input"
-                placeholder="리포트를 받으실 이메일을 입력해주세요"
-                value={jobEmail}
-                onChange={(event) => setJobEmail(event.target.value)}
-              />
-              {jobFormErrors.email ? <p className="contact-error">{jobFormErrors.email}</p> : null}
-            </div>
             {jobSubmitError ? <p className="contact-error">{jobSubmitError}</p> : null}
             <button type="submit" className="form-submit" disabled={isPaying || !isJobFormValid}>
-              {isPaying ? '결제창 여는 중...' : '내 커리어 리스크 진단받기 (3,000원)'}
+              {isPaying ? '잠시만 기다려주세요...' : '무료 미리보기 결과 보기'}
             </button>
             <p className="form-note">
-              리포트를 받기 전에는 전액 환불 가능합니다
+              이메일은 무료 미리보기 입력 단계에서 받지 않습니다
               <br />
-              리포트 수령 후에는 환불이 어렵습니다
+              결제/리포트 전달 단계에서 별도 확인됩니다
             </p>
           </form>
         </div>
       </section>
+
+      {isPreviewVisible ? (
+        <section ref={resultSectionRef} className="section preview-result-section" id="result" aria-label="무료 미리보기 결과">
+          <div className="section-label section-centered">무료 미리보기 결과</div>
+          <h2 className="section-title section-centered">선택한 조건 기준으로 먼저 걸러봤어요</h2>
+
+          {paymentSuccessMessage ? (
+            <div className="payment-success-banner" role="status" aria-live="polite">
+              {paymentSuccessMessage}
+            </div>
+          ) : null}
+
+          {(() => {
+            const preview = previewResult
+            return (
+              <>
+                {previewLoading ? (
+                  <div className="preview-block">
+                    <h3 className="preview-heading">분석 중</h3>
+                    <p className="preview-line">공고 문장 근거를 찾아 미리보기를 만들고 있어요…</p>
+                  </div>
+                ) : null}
+
+                {!previewLoading && !preview ? (
+                  <div className="preview-block">
+                    <h3 className="preview-heading">미리보기를 만들지 못했어요</h3>
+                    <p className="preview-line">
+                      공고 텍스트가 너무 짧거나 형식이 깨져 있을 수 있어요. 공고 본문을 조금 더 길게 붙여넣고 다시 시도해주세요.
+                    </p>
+                  </div>
+                ) : null}
+
+                {preview ? (
+                  <div className="preview-block preview-summary-frame" aria-label="상단 요약">
+                    {preview?.avoidConditionMatches?.length ? (
+                      <div className="preview-summary-section">
+                        <h3 className="preview-heading">선택한 조건과의 충돌 요약</h3>
+                        <div className="avoid-match-list">
+                          {(preview.previewTopMatches?.length ? preview.previewTopMatches : preview.avoidConditionMatches.slice(0, 3)).map(
+                            (m) => (
+                            <div key={m.tag} className={`avoid-match-card level-${m.level || 'needs_review'}`}>
+                              <div className="avoid-match-header">
+                                <span className="selected-tag">{m.tag}</span>
+                                <span className="level-pill" title={levelHelp(m.level)}>
+                                  {levelLabel(m.level)}
+                                </span>
+                              </div>
+                              <div className="preview-card-desc">{m.reason}</div>
+
+                              {m.evidenceText ? (
+                                <div className="preview-inline-block" aria-label="근거">
+                                  <div className="preview-inline-title">원문 근거</div>
+                                  <div className="preview-inline-quote">{m.evidenceText}</div>
+                                  {m.evidenceWhy ? <div className="preview-inline-why">{m.evidenceWhy}</div> : null}
+                                </div>
+                              ) : null}
+
+                              {m.interviewQuestion ? (
+                                <div className="preview-inline-block" aria-label="면접 질문">
+                                  <div className="preview-inline-title">면접 질문</div>
+                                  <div className="preview-inline-question">
+                                    <strong>{m.interviewQuestion}</strong>
+                                  </div>
+                                  {m.interviewQuestionWhy ? (
+                                    <div className="preview-inline-why">{m.interviewQuestionWhy}</div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                          )}
+                        </div>
+                        {preview.previewOtherMatchesSummary ? (
+                          <p className="preview-subline preview-other-summary">{preview.previewOtherMatchesSummary}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="preview-summary-section">
+                      <h3 className="preview-heading">한 줄 지원 판단</h3>
+                      <p className="preview-line">
+                        <strong>{preview.supportDecision?.label || '확인 후 지원'}</strong>
+                        {preview.supportDecision?.summary ? ` — ${toFirstSentence(preview.supportDecision.summary)}` : ''}
+                      </p>
+                      {preview.missingSummary ? <p className="preview-subline">{preview.missingSummary}</p> : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {isUnlocked && preview ? (
+                  <div className="preview-block preview-detail-frame" aria-label="상세 분석">
+                    <h3 className="preview-heading">상세 분석</h3>
+
+                    {preview?.avoidConditionMatches?.length ? (
+                      <div className="preview-block-inner">
+                        <h4 className="preview-subheading">선택한 조건별 근거</h4>
+                        <div className="avoid-match-list">
+                          {preview.avoidConditionMatches.map((m) => (
+                            <div key={m.tag} className={`avoid-match-card level-${m.level || 'needs_review'}`}>
+                              <div className="avoid-match-header">
+                                <span className="selected-tag">{m.tag}</span>
+                                <span className="level-pill" title={levelHelp(m.level)}>
+                                  {levelLabel(m.level)}
+                                </span>
+                              </div>
+                              <div className="preview-card-desc">{m.reason}</div>
+                              {Array.isArray(m.evidence) && m.evidence.length ? (
+                                <ul className="preview-evidence-list" aria-label="근거 문장">
+                                  {m.evidence.slice(0, 3).map((ev) => (
+                                    <li key={toEvidenceText(ev)}>
+                                      <span className="evidence-badge">
+                                        {toEvidenceSourceType(ev) === 'quote' ? '원문' : '요약'}
+                                      </span>
+                                      <span className="evidence-text">{toEvidenceText(ev)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {preview?.missingInformation?.length ? (
+                      <div className="preview-block-inner">
+                        <h4 className="preview-subheading">누락 정보(확인 필요)</h4>
+                        <ul className="preview-question-list">
+                          {preview.missingInformation.map((m) => (
+                            <li key={m.item}>
+                              <strong>{m.item}</strong>
+                              {m.reason ? ` — ${m.reason}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {preview?.keyPoints?.length ? (
+                      <div className="preview-block-inner">
+                        <h4 className="preview-subheading">추가 확인 포인트</h4>
+                        <div className="preview-card-grid">
+                          {preview.keyPoints.slice(0, 6).map((item) => (
+                            <div key={item.title} className="preview-card">
+                              <div className="preview-card-title">{item.title}</div>
+                              <div className="preview-card-desc">{item.reason}</div>
+                              {Array.isArray(item.evidence) && item.evidence.length ? (
+                                <ul className="preview-evidence-list" aria-label="근거 문장">
+                                  {item.evidence.slice(0, 3).map((ev) => (
+                                    <li key={toEvidenceText(ev)}>
+                                      <span className="evidence-badge">
+                                        {toEvidenceSourceType(ev) === 'quote' ? '원문' : '요약'}
+                                      </span>
+                                      <span className="evidence-text">{toEvidenceText(ev)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {preview?.interviewQuestions?.length ? (
+                      <div className="preview-block-inner">
+                        <h4 className="preview-subheading">면접 질문(전체)</h4>
+                        <ul className="preview-question-list">
+                          {preview.interviewQuestions.slice(0, 6).map((q) => (
+                            <li key={q.question}>
+                              <strong>{q.question}</strong>
+                              {q.whyThisMatters ? ` — ${q.whyThisMatters}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="preview-cta">
+                  {!isUnlocked ? (
+                    <>
+                      <button type="button" className="btn-primary preview-pay-cta" onClick={handleStartPayment} disabled={isPaying}>
+                        {isPaying ? '결제창 여는 중...' : '3,000원으로 전체 결과 보기'}
+                      </button>
+                      <p className="preview-cta-note">결제 후 바로 전체 결과를 확인할 수 있어요. 원하면 이메일로도 받아볼 수 있어요.</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="unlocked-note">이제 상세 분석을 바로 확인할 수 있어요.</div>
+                      <div className="postpay-actions">
+                        <button type="button" className="btn-primary btn-secondary-size" disabled>
+                          이 결과를 이메일로 받기 (준비 중)
+                        </button>
+                        <button type="button" className="btn-primary btn-secondary-size" disabled>
+                          PC에서 다시 볼 링크 받기 (준비 중)
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )
+          })()}
+        </section>
+      ) : null}
 
       <section className="founder-section">
         <div className="founder-card">

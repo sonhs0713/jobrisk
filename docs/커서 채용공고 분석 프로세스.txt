@@ -1,0 +1,110 @@
+현재 코드 기준으로는 “실시간 AI 분석을 즉시 화면에 보여주는 구조”가 아니라, 결제 후 입력값을 저장/전송해서 이후에 리포트를 생성·전달하는 구조에 가깝습니다. 다른 AI가 이해할 수 있게, 실제 코드 흐름(입력→세션저장→결제→검증→요청전송)을 파일 기준으로 정리해드릴게요.
+
+현재 코드 기준 “채용공고를 분석하는 과정”을 다른 AI가 오해 없이 이해할 수 있게, 실제 동작 흐름을 그대로 정리하면 아래와 같습니다.
+
+1) 한 줄 요약
+지금은 ‘즉시 AI 분석 결과를 생성/표시’하는 구조가 아니라, 사용자가 입력한 내용을 기반으로 **무료 미리보기(입력 기반 가이드)**를 보여주고, 결제 완료 시 결제 검증 + 분석 요청 데이터를 저장/전송(Formspree) 하는 구조입니다.
+2) 실제 사용자 플로우(입력 → 미리보기 → 결제 → 검증/저장 → 결과 해제)
+A. 메인 입력(필수 3개)
+메인 페이지는 /이고 App이 렌더됩니다.
+createRoot(document.getElementById('root')).render(
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<App />} />
+      <Route path="/payment-complete" element={<PaymentComplete />} />
+      <Route path="/thank-you" element={<ThankYou />} />
+      <Route path="/payment-fail" element={<PaymentFail />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  </BrowserRouter>,
+)
+App.jsx에서 사용자가 입력하는 핵심 값은:
+jobPostingText (채용공고 텍스트 또는 URL)
+yearsOfExperience (연차)
+avoidRiskTags (피하고 싶은 조건 칩 다중 선택)
+function App() {
+  const [isPaying, setIsPaying] = useState(false)
+  const [jobPostingText, setJobPostingText] = useState('')
+  const [yearsOfExperience, setYearsOfExperience] = useState('')
+  const [avoidRiskTags, setAvoidRiskTags] = useState([])
+  const [additionalRequest, setAdditionalRequest] = useState('')
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false)
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  // ...
+  const jobFormErrors = useMemo(() => {
+    const errors = { jobPostingText: '', yearsOfExperience: '', avoidRiskTags: '' }
+    // ... 필수값 검증 ...
+    return errors
+  }, [avoidRiskTags, jobPostingText, yearsOfExperience])
+}
+B. “무료 미리보기 결과 보기”
+버튼을 누르면 결제 없이 미리보기 결과 섹션을 보여주는 상태 전환이 발생합니다.
+이 “미리보기 결과”는 현재 buildPreviewResult()처럼 입력(연차, 선택한 조건) 기반으로 생성되는 “지원 판단/면접 질문/확인 포인트”입니다. (LLM 호출/백엔드 분석 호출 없음)
+function buildPreviewResult({ yearsOfExperience, avoidRiskTags }) {
+  const questionsByTag = { /* 태그별 질문 템플릿 */ }
+  const selectedQuestions = avoidRiskTags.flatMap((tag) => questionsByTag[tag] || []).slice(0, 3)
+  // ...
+  return { supportLine, keyPoints, conflictTitle, selectedQuestions }
+}
+C. 결제 시작(미리보기 하단 CTA)
+미리보기 하단 CTA에서 결제 함수 requestEarlyBirdPayment(...)를 호출합니다.
+결제 요청은 PortOne 브라우저 SDK를 통해 실행되며, **forceRedirect: true**라서 결제 이후 redirectUrl로 이동하는 redirect 기반입니다.
+export async function requestEarlyBirdPayment(customerEmail) {
+  const storeId = import.meta.env.VITE_PORTONE_STORE_ID
+  const channelKey = import.meta.env.VITE_PORTONE_CHANNEL_KEY
+  if (!storeId || !channelKey) throw new Error('PortOne 설정이 없습니다...')
+  // ...
+  const redirectUrl = `${window.location.origin}${toPaymentCompleteUrl(paymentId, EARLY_BIRD_AMOUNT)}`
+  const result = await requestPayment({
+    storeId,
+    channelKey,
+    // ...
+    forceRedirect: true,
+    customer: { email: customerEmail },
+    redirectUrl,
+  })
+}
+D. 결제 완료 처리(/payment-complete)
+결제가 끝나면 /payment-complete로 들어옵니다.
+여기서 하는 일:
+paymentId, amount를 쿼리 또는 sessionStorage에서 읽음
+/api/payments/verify로 결제 검증
+검증 성공이면 Formspree(환경변수 endpoint)로 결제/분석 요청 데이터 전송
+성공 시 earlybird_unlocked=1을 세팅하고 메인 /?unlocked=1#result로 복귀
+const verifyResponse = await fetch('/api/payments/verify', { method: 'POST', /*...*/ })
+verified = await verifyResponse.json()
+if (!verified?.ok || !verified?.isPaid) navigate(`/payment-fail?...`)
+const email = sessionStorage.getItem('earlybird_customer_email') || ''
+const jobPostingText = sessionStorage.getItem('earlybird_job_posting_text') || ''
+const additionalRequest = sessionStorage.getItem('earlybird_additional_request') || ''
+const formData = new FormData()
+// ... 결제 정보 + 입력 데이터 append ...
+const response = await fetch(endpoint, { method: 'POST', headers: { Accept: 'application/json' }, body: formData })
+sessionStorage.setItem('earlybird_unlocked', '1')
+navigate('/?unlocked=1#result', { replace: true })
+E. 결제 후 “결과 해제(unlock)”
+App.jsx는 로드 시 ?unlocked=1 또는 sessionStorage earlybird_unlocked를 확인해,
+결과 섹션을 보여주고
+성공 메시지를 띄우고
+결과 섹션으로 스크롤 이동합니다.
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search)
+  const unlockedParam = params.get('unlocked')
+  const unlockedFlag = sessionStorage.getItem('earlybird_unlocked')
+  if (unlockedParam === '1' || unlockedFlag === '1') {
+    setIsUnlocked(true)
+    setIsPreviewVisible(true)
+    setPaymentSuccessMessage('결제가 완료되어 전체 결과가 열렸어요. 아래에서 바로 확인할 수 있어요.')
+    sessionStorage.removeItem('earlybird_unlocked')
+    setTimeout(() => {
+      resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }
+}, [])
+3) 중요한 현재 한계(분석 관점)
+실제 “채용공고를 AI로 분석하는 엔진(LLM 호출/백엔드 분석 API)”은 코드에 아직 구현되어 있지 않습니다.
+지금 “분석”은:
+무료 미리보기: 입력 기반 템플릿(칩/연차 기반 질문·확인 포인트)
+결제 후: 결제 검증 + 입력 데이터를 Formspree로 전송하여 “분석 요청”을 저장/전달하는 단계
+원하면 다음으로, “분석 결과 타입 정의 파일”과 실제 분석 API(또는 최소한의 서버 호출) 위치를 만들기 전에, 현재 구조에서 어디에 분석 fetch를 끼워 넣는 게 자연스러운지도 설계해드릴 수 있어요.

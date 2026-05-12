@@ -91,13 +91,10 @@ function PaymentComplete() {
           throw new Error('save_failed')
         }
 
-        sessionStorage.removeItem('earlybird_customer_email')
-        sessionStorage.removeItem('earlybird_payment_id')
-        sessionStorage.removeItem('earlybird_order_id')
-        sessionStorage.removeItem('earlybird_amount')
-        sessionStorage.removeItem('earlybird_job_posting_text')
-        sessionStorage.removeItem('earlybird_additional_request')
-        navigate('/thank-you', { replace: true })
+        // 결제 완료 후, 같은 맥락(메인 결과 화면)에서 즉시 전체 결과를 해제해 보여주기 위해
+        // 입력값/요청값은 유지하고, unlock 플래그만 설정해 메인으로 복귀시킵니다.
+        sessionStorage.setItem('earlybird_unlocked', '1')
+        navigate('/?unlocked=1#result', { replace: true })
       } catch {
         setErrorMessage('결제 정보 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
       }

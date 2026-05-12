@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+---
+description: Rules for landing page, copy, and UI edits
+alwaysApply: true
+---
+
+# Landing Page and UI Rules
+
+This project is a landing page for JOBRISK, a service that helps users identify career risk signals from job postings before making job change decisions.
+
+## Core product understanding
+- The service is not just an AI summary tool
+- The service helps users reduce regret from bad job changes
+- The landing page should feel trustworthy, clear, and practical
+
+## Design principles
+- Follow docs/design-system.md
+- Optimize for clarity and trust, not visual novelty
+- Avoid overdesign, flashy gradients, glassmorphism, or trendy visuals that reduce trust
+- Keep layouts simple and readable
+
+## Copy principles
+- Follow docs/positioning.md
+- Do not use exaggerated or legally risky claims
+- Do not say the service can perfectly judge whether a company is bad
+- Do not use 100 percent accuracy claims
+- Prefer phrases like risk signals, decision support, and things to verify before joining
+
+## Scope control
+- When asked to edit a section, change only that section and directly related files
+- Do not redesign the whole page unless explicitly asked
+- Keep existing structure unless the user requests a structural change
+
+## Output behavior
+- For copy or UI edits, first summarize:
+  1. what section will change
+  2. what will stay unchanged
+  3. what files will be touched
+- After editing, summarize:
+  1. what changed
+  2. why it changed
+  3. anything that still needs verification

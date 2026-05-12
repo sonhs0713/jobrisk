@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+---
+
+---
+description: Safety rules for all code changes in this project
+alwaysApply: true
+---
+
+# Safety Rules
+
+You are working on a production-minded prototype for a non-developer solo founder.
+
+## Never do these without explicit approval
+- Do not delete files or folders
+- Do not rename major files
+- Do not rewrite large sections of the project structure
+- Do not change environment variables, deployment settings, payment flow, or database-related logic unless explicitly requested
+
+## Before making changes
+- First explain what you think the task is
+- List which files you plan to change
+- If the task may affect more than 3 files, propose a plan first and wait for approval
+- If the request is ambiguous, ask for the smallest clarification needed
+
+## During changes
+- Stay within the requested scope
+- Do not modify unrelated files
+- Prefer small, reversible edits over broad refactors
+- If a bigger refactor seems necessary, stop and explain why before doing it
+
+## Before claiming completion
+- Do not say the task is complete unless you also report what you changed
+- Tell the user which files were changed and why
+- Report any known risk, limitation, or unverified area honestly
+- If you are not sure, say so clearly instead of pretending it is fixed
+
+## When debugging
+- Reproduce the issue first when possible
+- Explain the likely cause before applying a fix
+- If the same fix approach fails twice, stop and propose a different approach
