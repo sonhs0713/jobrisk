@@ -15,6 +15,47 @@ const AVOID_RISK_OPTIONS = [
 
 const EXCLUDED_AVOID_RISK_TAGS = new Set(['복지 과장', '출퇴근/근무 방식 불일치'])
 
+const EARLYBIRD_TAGS_KEY = 'earlybird_avoid_risk_tags'
+
+function readStoredAvoidRiskTags() {
+  const raw = sessionStorage.getItem(EARLYBIRD_TAGS_KEY)
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((t) => typeof t === 'string' && t.trim())
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const addl = sessionStorage.getItem('earlybird_additional_request') || ''
+  const line = addl.split('\n').find((l) => l.startsWith('피하고 싶은 조건:'))
+  if (!line) return []
+  const part = line.slice('피하고 싶은 조건:'.length).trim()
+  if (!part) return []
+  return part.split(/,\s*/).map((s) => s.trim()).filter(Boolean)
+}
+
+async function fetchPreviewAnalyzeApi(jobPostingText, avoidRiskTags) {
+  const response = await fetch('/api/preview/analyze', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      jobPostingText: String(jobPostingText || '').trim(),
+      avoidRiskTags: avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t)),
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok || !data?.ok || !data?.result) {
+    throw new Error('preview_failed')
+  }
+  return data.result
+}
+
 function buildFallbackPreviewEmail() {
   return `preview-user-${Date.now()}@jobrisk.local`
 }
@@ -129,6 +170,45 @@ function App() {
       setTimeout(() => {
         resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 0)
+
+      const storedJob = sessionStorage.getItem('earlybird_job_posting_text') || ''
+      const storedTags = readStoredAvoidRiskTags()
+      const filteredTags = storedTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))
+
+      if (storedJob.trim() && filteredTags.length > 0) {
+        setJobPostingText(storedJob.trim())
+        setAvoidRiskTags(filteredTags)
+        setPreviewLoading(true)
+        setPreviewResult(null)
+        ;(async () => {
+          try {
+            agentDebugLog({
+              runId: 'post-pay',
+              hypothesisId: 'H1',
+              location: 'src/App.jsx:unlock_restore_preview',
+              message: 'Restoring preview after payment return',
+              data: {
+                path: '/api/preview/analyze',
+                jobPostingTextLen: storedJob.trim().length,
+                avoidRiskTagsCount: filteredTags.length,
+              },
+            })
+            const result = await fetchPreviewAnalyzeApi(storedJob, filteredTags)
+            setPreviewResult(result)
+          } catch {
+            agentDebugLog({
+              runId: 'post-pay',
+              hypothesisId: 'H2',
+              location: 'src/App.jsx:unlock_restore_preview_catch',
+              message: 'Preview restore after payment failed',
+              data: {},
+            })
+            setPreviewResult(null)
+          } finally {
+            setPreviewLoading(false)
+          }
+        })()
+      }
     }
   }, [])
 
@@ -159,33 +239,15 @@ function App() {
             avoidRiskTagsCount: avoidRiskTags.length,
           },
         })
-        const response = await fetch('/api/preview/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            jobPostingText: jobPostingText.trim(),
-            avoidRiskTags: avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t)),
-          }),
-        })
+        const result = await fetchPreviewAnalyzeApi(jobPostingText, avoidRiskTags)
         agentDebugLog({
           runId: 'pre-fix',
           hypothesisId: 'H1',
           location: 'src/App.jsx:post_fetch_preview',
           message: 'Preview analyze fetch completed',
-          data: {
-            status: response.status,
-            ok: response.ok,
-            contentType: response.headers.get('content-type') || '',
-          },
+          data: { ok: true },
         })
-        const data = await response.json()
-        if (!response.ok || !data?.ok || !data?.result) {
-          throw new Error('preview_failed')
-        }
-        setPreviewResult(data.result)
+        setPreviewResult(result)
       } catch {
         agentDebugLog({
           runId: 'pre-fix',
@@ -218,6 +280,10 @@ function App() {
     const customerEmailForPayment = buildFallbackPreviewEmail()
 
     sessionStorage.setItem('earlybird_job_posting_text', jobPostingText.trim())
+    sessionStorage.setItem(
+      EARLYBIRD_TAGS_KEY,
+      JSON.stringify(avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))),
+    )
     sessionStorage.setItem('earlybird_additional_request', mappedAdditionalRequest)
     sessionStorage.setItem('earlybird_customer_email', customerEmailForPayment)
 
