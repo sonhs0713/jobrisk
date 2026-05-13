@@ -6,12 +6,8 @@ function HowItWorks() {
       <div className="how-it-works-grid">
         <article className="how-it-works-card">
           <p className="how-it-works-step">01</p>
-          <h3 className="how-it-works-card-title">
-            내 경력과 선호 조건을 입력합니다
-          </h3>
-          <p className="how-it-works-card-description">
-            현재 연차, 희망 연봉, 피하고 싶은 조건을 입력합니다
-          </p>
+          <h3 className="how-it-works-card-title">채용공고를 붙여넣습니다</h3>
+          <p className="how-it-works-card-description">지원을 고려 중인 공고 본문을 그대로 넣으면 됩니다</p>
         </article>
 
         <span className="how-it-works-arrow" aria-hidden="true">
@@ -20,9 +16,9 @@ function HowItWorks() {
 
         <article className="how-it-works-card">
           <p className="how-it-works-step">02</p>
-          <h3 className="how-it-works-card-title">채용공고를 붙여넣습니다</h3>
+          <h3 className="how-it-works-card-title">무료 미리보기로 물경력 가능성을 봅니다</h3>
           <p className="how-it-works-card-description">
-            지원하려는 공고 텍스트를 그대로 복사해서 넣으면 됩니다
+            한 줄 결론, 핵심 근거 1개, 짧은 이유, 확인 질문 1개까지 같은 기준으로 감지합니다
           </p>
         </article>
 
@@ -32,9 +28,9 @@ function HowItWorks() {
 
         <article className="how-it-works-card">
           <p className="how-it-works-step">03</p>
-          <h3 className="how-it-works-card-title">AI 분석 리포트를 받습니다</h3>
+          <h3 className="how-it-works-card-title">필요하면 상세 분석을 엽니다</h3>
           <p className="how-it-works-card-description">
-            물경력 위험도, 적정 연봉, 면접 필수 질문을 정리해드립니다
+            결제 후 이 페이지에서 5개 축·근거·면접 질문과 답변 가이드를 바로 이어서 볼 수 있어요
           </p>
         </article>
       </div>

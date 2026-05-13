@@ -1,6 +1,6 @@
 const EARLY_BIRD_AMOUNT = 3000
-const ORDER_NAME = '채용공고 분석 서비스 얼리버드 등록'
-const OFFER_PERIOD_TEXT = '결제 후 1시간 이내 (평일 10시~18시)'
+const ORDER_NAME = 'JOBRISK 물경력 가능성 상세 분석(얼리버드)'
+const OFFER_PERIOD_TEXT = '결제 직후 웹 화면에서 결과 확인'
 const DEFAULT_KCP_SCRIPT_URL = 'https://spay.kcp.co.kr/plugin/kcp_spay_hub.js'
 const TEST_KCP_SCRIPT_URL = 'https://testspay.kcp.co.kr/plugin/kcp_spay_hub.js'
 

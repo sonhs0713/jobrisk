@@ -1,52 +1,45 @@
 function Problem() {
   return (
     <section id="problem-section" className="problem-section">
-      <h2 className="problem-title">다들 한 번씩은 겪어봤을 겁니다
-      </h2>
+      <h2 className="problem-title">공고만으로는 역할의 전부가 보이지 않을 때가 있습니다</h2>
       <div className="problem-grid">
         <article className="problem-card">
-          <span className="problem-icon" role="img" aria-label="warning">
-            🚨
+          <span className="problem-icon" role="img" aria-label="document">
+            📄
           </span>
-          <h3 className="problem-card-title">야근·물경력, 공고만 봐서는 알 수 없습니다</h3>
+          <h3 className="problem-card-title">멋진 문장과 실제 업무 사이</h3>
           <p className="problem-card-description">
-            &apos;자율적인 분위기&apos;, &apos;오너십 발휘&apos;.
+            &apos;오너십&apos;, &apos;빠른 실행&apos; 같은 표현만으로는
             <br />
-            좋은 말 뒤에 숨겨진 신호를
-            <br />
-            채용공고 문구에서 먼저 찾아드립니다
+            반복 운영인지 성과 책임인지 경계가 드러나지 않을 수 있습니다
           </p>
         </article>
 
         <article className="problem-card">
-          <span className="problem-icon" role="img" aria-label="chart">
-            📉
+          <span className="problem-icon" role="img" aria-label="compass">
+            🧭
           </span>
-          <h3 className="problem-card-title">잡플래닛 4점도 믿을 수 없습니다</h3>
+          <h3 className="problem-card-title">같은 단어도 직무에 따라 다릅니다</h3>
           <p className="problem-card-description">
-            평점 높아서 지원했는데
+            같은 &apos;운영&apos;이라도
             <br />
-            막상 입사해보니 야근에 물경력.
+            직무 맥락에 따라 물경력 신호로 읽을지,
             <br />
-            후기는 재직자가 쓰고
-            <br />
-            채용공고는 회사가 직접 씁니다
+            경력 자산으로 읽을지가 달라질 수 있습니다
           </p>
         </article>
 
         <article className="problem-card">
-          <span className="problem-icon" role="img" aria-label="money">
-            💰
+          <span className="problem-icon" role="img" aria-label="check">
+            ✅
           </span>
-          <h3 className="problem-card-title">연봉은 왜 항상 내가 먼저 써야 할까요</h3>
+          <h3 className="problem-card-title">지원 전에 질문 포인트를 잡습니다</h3>
           <p className="problem-card-description">
-            희망연봉을 낮게 쓰면 손해,
+            JOBRISK는 회사를 단정하지 않고
             <br />
-            높게 쓰면 탈락.
+            공고 문장을 기준으로 물경력 가능성을
             <br />
-            적정 연봉이 얼마인지 모르면
-            <br />
-            항상 끌려다닐 수밖에 없습니다
+            같은 틀로 먼저 점검합니다
           </p>
         </article>
       </div>

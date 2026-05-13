@@ -1,17 +1,14 @@
 function Sample() {
   return (
     <section className="sample-section">
-      <h2 className="sample-title">채용공고의 행간을 이렇게 읽어드립니다</h2>
+      <h2 className="sample-title">무료 미리보기와 유료 상세가 이렇게 나뉩니다</h2>
 
       <div className="sample-compare-grid">
         <article className="sample-box sample-before">
-          <p className="sample-box-label">채용공고 원문</p>
+          <p className="sample-box-label">채용공고 원문(일부)</p>
           <h3 className="sample-before-title">[글로벌 뷰티 브랜드] 마케팅 담당자 채용</h3>
           <p className="sample-before-text">
-            We are hiring.
-            <br />
-            <br />
-            저희는 빠르게 성장 중인 뷰티 스타트업입니다.
+            빠르게 성장 중인 뷰티 스타트업입니다.
             <br />
             인스타그램 팔로워 10만을 보유한 브랜드로,
             <br />
@@ -29,22 +26,6 @@ function Sample() {
           </div>
 
           <div className="sample-before-group">
-            <p className="sample-before-heading">자격요건</p>
-            <ul className="sample-before-list">
-              <li>· 경력 2년 이상</li>
-              <li>· SNS 채널 운영 경험 보유</li>
-            </ul>
-          </div>
-
-          <div className="sample-before-group">
-            <p className="sample-before-heading">우대사항</p>
-            <ul className="sample-before-list">
-              <li>· 뷰티/패션 업종 경험자</li>
-              <li>· 포토샵, 프리미어 활용 가능자</li>
-            </ul>
-          </div>
-
-          <div className="sample-before-group">
             <p className="sample-before-heading">혜택</p>
             <ul className="sample-before-list">
               <li>· 자율 출퇴근</li>
@@ -55,45 +36,48 @@ function Sample() {
         </article>
 
         <article className="sample-box sample-after">
-          <p className="sample-box-label">AI 분석 결과</p>
+          <p className="sample-box-label">무료 미리보기(감지)</p>
 
           <p className="sample-line">
-            <span className="sample-key">물경력 위험도</span>
-            <span className="sample-risk">⚠️ 높음</span>
+            <span className="sample-key">한 줄</span>
+            <span className="sample-value">추가 확인이 필요해 보여요 — 채널·광고·협업이 한 번에 묶여 있어요</span>
           </p>
 
           <div className="sample-line">
-            <span className="sample-key">위험 신호</span>
+            <span className="sample-key">핵심 근거 1개</span>
             <ul className="sample-list">
-              <li>· SNS·콘텐츠·광고·데이터 동시 담당 → 전문성 없이 잡일 가능성</li>
-              <li>· 작은 팀 + 오너십 강조 → 혼자 다 해야 하는 구조</li>
-              <li>· 연봉 협의 → 정보 비대칭 상태에서 협상 불리</li>
+              <li>
+                <em>“SNS 채널 운영 및 콘텐츠 제작”</em> → 집행·운영 비중이 큰지, 전략·지표 소유가 있는지 면접에서 확인할 가치가
+                있어요.
+              </li>
             </ul>
           </div>
 
           <p className="sample-line">
-            <span className="sample-key">적정 연봉</span>
-            <span className="sample-value">경력 3년 기준 3,800~4,200만원 예상</span>
+            <span className="sample-key">짧은 이유</span>
+            <ul className="sample-list">
+              <li>· 역할 묶음이 넓어 우선순위 확인이 필요</li>
+              <li>· 성과 지표 문장이 약하면 평가 방식 확인</li>
+            </ul>
           </p>
 
           <p className="sample-line">
-            <span className="sample-key">커리어 패스 전망</span>
-            <span className="sample-value">
-              마케터 → 퍼포먼스 마케터 성장 가능성 낮음.
-              <br />
-              직무 범위가 넓어 전문성 축적이 어렵습니다.
-              <br />
-              3년 후 이직 시 &apos;무엇을 잘하는 사람&apos;으로
-              <br />
-              포지셔닝하기 어려울 수 있습니다
-            </span>
+            <span className="sample-key">확인 질문 1개</span>
+            <span className="sample-value">캠페인에서 전략·실험·지표 개선 중 무엇을 직접 결정하나요?</span>
+          </p>
+
+          <p className="sample-box-label sample-box-label-follow">유료 상세(검증) 예시</p>
+
+          <p className="sample-line">
+            <span className="sample-key">직무군 · 5개 축</span>
+            <span className="sample-value">마케팅·브랜딩 기준으로 다섯 축을 풀어 정리합니다.</span>
           </p>
 
           <div className="sample-line">
-            <span className="sample-key">면접 필수 질문</span>
+            <span className="sample-key">근거 · 면접</span>
             <ul className="sample-list">
-              <li>· 이 포지션 전임자는 왜 퇴사했나요?</li>
-              <li>· 팀 규모와 각자 담당 업무가 어떻게 되나요?</li>
+              <li>· 공고 원문 3~5개를 골라 근거로 묶습니다</li>
+              <li>· 면접 질문 5~7개와 괜찮은 답 / 확인 필요 답변 가이드를 붙입니다</li>
             </ul>
           </div>
         </article>

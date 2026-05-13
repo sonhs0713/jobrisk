@@ -416,6 +416,10 @@ span {
   line-height: 1.2;
 }
 
+.sample-box-label-follow {
+  margin-top: 1.25rem;
+}
+
 .sample-before-text {
   margin: 0;
   color: #d5deef;
@@ -962,6 +966,13 @@ span {
   margin: 0;
   font-size: clamp(32px, 4vw, 44px);
   font-weight: 800;
+}
+
+.terms-legal-note {
+  margin: 0 0 1.5rem;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.55;
 }
 
 .terms-sections {
@@ -1600,6 +1611,10 @@ span {
   text-align: center;
 }
 
+.landing-page .stakes-section .stakes-caption {
+  color: var(--text-primary);
+}
+
 .landing-page .stakes-number {
   font-size: clamp(64px, 12vw, 120px);
   font-weight: 900;
@@ -1701,6 +1716,10 @@ span {
 .landing-page .demo-card.result {
   border: 1px solid rgba(245, 197, 66, 0.65);
   box-shadow: 0 10px 30px rgba(245, 197, 66, 0.18);
+}
+
+.landing-page .demo-card-label-follow {
+  margin-top: 1.25rem;
 }
 
 .landing-page .demo-card-label {
@@ -2186,6 +2205,86 @@ span {
 .landing-page .preview-inline-why {
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.landing-page .preview-family-note {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.landing-page .preview-free-headline {
+  text-align: center;
+}
+
+.landing-page .preview-reason-bullets {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.landing-page .preview-five-axes {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.landing-page .preview-axis-summary {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.landing-page .preview-answer-guide {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.landing-page .answer-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-right: 6px;
+}
+
+.landing-page .answer-pill.answer-good {
+  background: rgba(34, 197, 94, 0.12);
+  color: rgb(21, 128, 61);
+}
+
+.landing-page .answer-pill.answer-risk {
+  background: rgba(251, 191, 36, 0.15);
+  color: rgb(161, 98, 7);
+}
+
+.landing-page .paid-question-list li {
+  margin-bottom: 14px;
+}
+
+.landing-page .landing-five-axes-footnote {
+  margin-top: 1rem;
+}
+
+.landing-page .landing-five-axes-list {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 0 0 1.25rem;
+  display: grid;
+  gap: 14px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  text-align: left;
+}
+
+.landing-page .landing-five-axes-list strong {
+  color: var(--text-primary);
 }
 
 .landing-page .evidence-badge {

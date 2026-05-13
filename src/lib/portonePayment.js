@@ -1,7 +1,7 @@
 import { requestPayment } from '@portone/browser-sdk/v2'
 
 const EARLY_BIRD_AMOUNT = 3000
-const ORDER_NAME = '채용공고 분석 서비스 얼리버드 등록'
+const ORDER_NAME = 'JOBRISK 물경력 가능성 상세 분석(얼리버드)'
 
 function buildPaymentId() {
   const random = Math.random().toString(36).slice(2, 10)

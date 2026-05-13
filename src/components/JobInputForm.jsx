@@ -10,7 +10,6 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
   const [email, setEmail] = useState('')
   const [touched, setTouched] = useState({
     jobPostingText: false,
-    additionalRequest: false,
     email: false,
   })
   const [submitError, setSubmitError] = useState('')
@@ -18,7 +17,6 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
   const errors = useMemo(() => {
     const nextErrors = {
       jobPostingText: '',
-      additionalRequest: '',
       email: '',
     }
 
@@ -26,22 +24,18 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
       nextErrors.jobPostingText = '채용공고를 입력해주세요'
     }
 
-    if (!additionalRequest.trim()) {
-      nextErrors.additionalRequest = '기타 요구사항을 입력해주세요'
-    }
-
     if (!email.trim() || !isValidEmail(email.trim())) {
       nextErrors.email = '올바른 이메일 주소를 입력해주세요'
     }
 
     return nextErrors
-  }, [additionalRequest, email, jobPostingText])
+  }, [email, jobPostingText])
 
-  const isFormValid = !errors.jobPostingText && !errors.additionalRequest && !errors.email
+  const isFormValid = !errors.jobPostingText && !errors.email
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    setTouched({ jobPostingText: true, additionalRequest: true, email: true })
+    setTouched({ jobPostingText: true, email: true })
     setSubmitError('')
 
     if (!isFormValid) return
@@ -61,9 +55,8 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
     <section id="job-input-section" className="job-input-section">
       <h2 className="job-input-title">채용공고를 입력해주세요</h2>
       <p className="job-input-subtitle">
-        결제 후 1시간 이내 분석 리포트를 이메일로 보내드립니다
-        <br />
-        (평일 오전 10시 ~ 오후 6시 기준)
+        JOBRISK는 지금 <strong>물경력 가능성</strong>만 같은 기준으로 점검합니다. 결제 후에는 이 페이지에서 상세 분석을 바로
+        열 수 있어요. 이메일 발송은 보조·준비 중입니다.
       </p>
 
       <form className="job-input-form" onSubmit={handleSubmit}>
@@ -74,7 +67,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
           id="job-posting-text"
           className="contact-textarea job-input-textarea"
           name="jobPostingText"
-          placeholder="분석받고 싶은 채용공고를 붙여넣어 주세요"
+          placeholder="지원을 고려 중인 채용공고 본문을 붙여넣어 주세요"
           value={jobPostingText}
           onChange={(event) => setJobPostingText(event.target.value)}
           onBlur={() => setTouched((prev) => ({ ...prev, jobPostingText: true }))}
@@ -84,21 +77,16 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
         ) : null}
 
         <label className="contact-label" htmlFor="additional-request">
-          기타 요구사항 (선택)
+          추가 메모 (선택)
         </label>
         <textarea
           id="additional-request"
           className="contact-textarea job-input-textarea-secondary"
           name="additionalRequest"
-          placeholder={`추가로 알려주실 내용이 있으면 적어주세요
-예) 현재 경력 3년차 마케터, 야근 없는 곳 원함, 연봉 4천만원 이상 희망`}
+          placeholder="결제·운영 쪽에 전달할 짧은 메모가 있으면 적어주세요. 분석 축은 물경력만 사용합니다."
           value={additionalRequest}
           onChange={(event) => setAdditionalRequest(event.target.value)}
-          onBlur={() => setTouched((prev) => ({ ...prev, additionalRequest: true }))}
         />
-        {touched.additionalRequest && errors.additionalRequest ? (
-          <p className="contact-error">{errors.additionalRequest}</p>
-        ) : null}
 
         <label className="contact-label" htmlFor="job-input-email">
           이메일
@@ -108,7 +96,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
           className="contact-input"
           type="email"
           name="email"
-          placeholder="리포트를 받으실 이메일을 입력해주세요"
+          placeholder="결제·문의 연락용 이메일"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
@@ -121,7 +109,7 @@ function JobInputForm({ onSubmitPayment, isPaying }) {
           className={`hero-button job-input-submit${isPaying ? ' is-paying' : ''}`}
           disabled={isPaying}
         >
-          {isPaying ? '결제창 여는 중...' : '내 커리어 리스크 진단받기(3,000원)'}
+          {isPaying ? '결제창 여는 중...' : '3,000원으로 물경력 상세 분석 보기'}
         </button>
       </form>
     </section>

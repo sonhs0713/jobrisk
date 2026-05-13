@@ -1,5 +1,13 @@
 import { Buffer } from 'node:buffer'
 
+import {
+  applyJobFamilyToWaterMatch,
+  buildFreePreviewPayload,
+  buildPaidDetailPayload,
+  classifyJobFamily,
+  computeFiveAxes,
+} from './jobFamilyAndWater.js'
+
 /* global process */
 
 function isRecord(value) {
@@ -898,10 +906,13 @@ function buildExtraction(jobPostingText) {
 
   const roleBoundaryMentioned = pickTopKeywords(lines, ['우선순위', '범위', '경계', '하지', '제외']).length > 0
 
+  const jobFamily = classifyJobFamily(lines)
+
   return {
     lines,
     evidenceLines,
     parseMeta,
+    jobFamily,
     salaryMentioned: salaryEvidence.length > 0,
     workingTimeMentioned: workingTimeEvidence.length > 0,
     hiringStagesMentioned: stageEvidence.length > 0,
@@ -960,7 +971,7 @@ function decideSupportDecision({ extraction, missingInformation, avoidConditionM
   // Single advisory sentence summary (no multi-sentence concatenation).
   const summaryCandidates = []
   if (avoidHigh >= 1) {
-    summaryCandidates.push('선택한 조건과 충돌 신호가 있어, 몇 가지를 확인한 뒤 판단하는 편이 안전해요.')
+    summaryCandidates.push('공고 기준으로 물경력 관련 신호가 있어, 몇 가지를 확인한 뒤 판단하는 편이 안전해요.')
   }
   if (keyMissingCount >= 1) {
     summaryCandidates.push('업무 범위나 성과 기준이 공고만으로 충분히 보이지 않아, 먼저 확인한 뒤 지원하는 편이 안전해요.')
@@ -1013,18 +1024,18 @@ function buildKeyPoints({ extraction, missingInformation, avoidConditionMatches 
   })
 
   points.push({
-    title: missingSalary ? '보상 범위/구조가 명시되어 있는지' : '보상 구조가 기대와 일치하는지',
+    title: missingSalary ? '보상이 공고에 드러나는지' : '보상 조건이 역할과 맞는지',
     reason: missingSalary
-      ? '연봉/보상 정보가 없으면 협상에서 정보 비대칭이 생길 수 있습니다.'
-      : '보상 범위/산정 방식이 역할 난이도와 일치하는지 확인하는 게 안전합니다.',
-    evidence: salaryEv.slice(0, 3),
+      ? '보상 범위가 공고에 없으면 입사 전에 조건을 확인하는 편이 안전합니다. (적정 연봉을 추정하지는 않아요.)'
+      : '보상 범위가 언급되어 있어도 구조가 역할과 맞는지는 면접에서 확인하는 게 좋아요.',
+    evidence: salaryEv.slice(0, 2),
   })
 
   const avoidHighOrMedium = avoidConditionMatches.filter((m) => m.level === 'high' || m.level === 'medium')
   if (avoidHighOrMedium.length > 0) {
     points.unshift({
-      title: '회피 조건과 충돌하는 근거가 있는지',
-      reason: '선택한 회피 조건과 충돌하는 단서가 있으면, 지원 전에 기준/빈도/범위를 먼저 확인하는 게 안전합니다.',
+      title: '물경력 신호가 공고에 드러나는지',
+      reason: '물경력 관련 신호가 있으면, 핵심 산출물·성과 책임·역할 경계를 지원 전에 확인하는 게 안전합니다.',
       evidence: avoidHighOrMedium.flatMap((m) => (Array.isArray(m.evidence) ? m.evidence : [])).slice(0, 3),
     })
   }
@@ -1062,6 +1073,11 @@ function postProcessResult({ result, extraction, avoidRiskTags }) {
     // Recompute avoidConditionMatches from extraction to enforce rules consistently (LLM or fallback).
     processed.avoidConditionMatches = buildAvoidMatches(avoidRiskTags, extraction)
   }
+
+  const jf = extraction.jobFamily || classifyJobFamily(extraction.lines || [])
+  processed.avoidConditionMatches = (processed.avoidConditionMatches || []).map((m) =>
+    String(m?.tag) === '물경력' ? applyJobFamilyToWaterMatch(m, jf, extraction.lines || []) : m,
+  )
 
   // Heuristic role-context adjustment (no LLM role-context in this iteration).
   processed.avoidConditionMatches = adjustAvoidMatchesForRoleContext({
@@ -1147,6 +1163,24 @@ function postProcessResult({ result, extraction, avoidRiskTags }) {
     })
   }
 
+  // 스키마 정책 A: 기존 필드 유지 + freePreview / paidDetail 추가 (기존 소비자 호환).
+  // 근거 sanitize 이후에 붙여, 미리보기 인용과 최종 avoidConditionMatches를 맞춤.
+  // freePreview·paidDetail: postProcess 완료 시 항상 설정(구형 캐시·비정상 응답 대비 폴백은 프론트에서 최소 안내만).
+  const fiveAxesSnapshot = computeFiveAxes({ lines: extraction.lines || [], extraction, jobFamily: jf })
+  processed.freePreview = buildFreePreviewPayload({
+    extraction,
+    jobFamily: jf,
+    avoidConditionMatches: processed.avoidConditionMatches || [],
+    fiveAxes: fiveAxesSnapshot,
+  })
+  processed.paidDetail = buildPaidDetailPayload({
+    jobFamily: jf,
+    fiveAxes: fiveAxesSnapshot,
+    supportDecision: processed.supportDecision,
+    avoidConditionMatches: processed.avoidConditionMatches || [],
+    keyEvidence: processed.keyEvidence,
+  })
+
   // Drop any internal meta if present.
   if (processed && typeof processed === 'object' && '_meta' in processed) {
     delete processed._meta
@@ -1180,6 +1214,8 @@ async function callOpenAiStructured({ apiKey, extraction, yearsOfExperience, avo
           '- If evidence is weak, use needs_review rather than high/medium.',
           '- Missing information is a primary decision factor and must affect supportDecision and keyPoints.',
           '- Evidence MUST be quotes that directly support the conclusion. If evidence is insufficient, prefer needs_review rather than paraphrase.',
+          '- Prototype scope: avoidConditionMatches MUST contain only the tag "물경력" (one row). Do not add unrelated risk tags.',
+          '- keyPoints must help verify 물경력 가능성 or 공고에 없는 확인 사항. Do not claim salary estimates, black-company judgment, or other out-of-scope conclusions.',
           '',
           `yearsOfExperience: ${String(yearsOfExperience || '')}`,
           `avoidRiskTags: ${JSON.stringify(avoidRiskTags || [])}`,
@@ -1243,7 +1279,7 @@ export default async function handler(req, res) {
     res.status(400).json({
       ok: false,
       code: 'INVALID_PREVIEW_INPUT',
-      message: 'jobPostingText, avoidRiskTags가 필요합니다.',
+      message: 'jobPostingText가 필요합니다.',
     })
     return
   }
@@ -1253,17 +1289,8 @@ export default async function handler(req, res) {
   }
   const jobPostingText = sanitizedText.slice(0, MAX_JOB_POSTING_TEXT_CHARS)
   const yearsOfExperience = String(payload?.yearsOfExperience || '')
-  const avoidRiskTags = Array.isArray(payload?.avoidRiskTags) ? payload.avoidRiskTags.map(String) : []
-  const filteredAvoidRiskTags = avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))
-
-  if (!jobPostingText || filteredAvoidRiskTags.length === 0) {
-    res.status(400).json({
-      ok: false,
-      code: 'INVALID_PREVIEW_INPUT',
-      message: 'jobPostingText, avoidRiskTags가 필요합니다.',
-    })
-    return
-  }
+  // 스키마 정책 A 유지(기존 필드 호환). 프리토타입: 서버는 물경력 축만 분석 — 클라이언트 avoidRiskTags는 사용하지 않음.
+  const filteredAvoidRiskTags = ['물경력']
 
   // 1) Extraction-first
   const extraction = buildExtraction(jobPostingText)

@@ -6,11 +6,11 @@ function ThankYou() {
       <div className="status-card">
         <h1 className="status-title">결제가 완료되었습니다.</h1>
         <p className="status-description">
-          입력하신 이메일로 1시간 이내 분석 리포트를 보내드립니다.
+          랜딩 페이지로 돌아가 같은 브라우저에서 미리보기 영역을 열면, 결제 직후 물경력 상세 분석을 이어서 확인할 수 있어요.
           <br />
-          (평일 오전 10시 ~ 오후 6시 기준)
+          (결제 직후 자동으로 열리지 않으면 메인의 공고 입력·미리보기 흐름을 한 번 더 눌러 주세요.)
           <br />
-          문의사항은 sonhs0713@gmail.com로 연락주세요
+          문의: sonhs0713@gmail.com
         </p>
         <Link to="/" className="hero-button status-home-button">
           메인으로 돌아가기

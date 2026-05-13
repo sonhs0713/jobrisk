@@ -1,43 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Footer from './components/Footer'
+import FAQ from './components/FAQ'
 import { requestEarlyBirdPayment } from './lib/portonePayment'
 
-const AVOID_RISK_OPTIONS = [
-  '물경력',
-  '야근 많음',
-  '업무 범위 불명확',
-  '성장 압박 심함',
-  '평가 기준 불명확',
-  '급여/보상 불투명',
-  '수습/계약 조건 불리함',
-  '잦은 잡무 가능성',
-]
+const DEFAULT_ANALYSIS_TAGS = ['물경력']
 
 const EXCLUDED_AVOID_RISK_TAGS = new Set(['복지 과장', '출퇴근/근무 방식 불일치'])
 
 const EARLYBIRD_TAGS_KEY = 'earlybird_avoid_risk_tags'
 
 function readStoredAvoidRiskTags() {
-  const raw = sessionStorage.getItem(EARLYBIRD_TAGS_KEY)
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        return parsed.filter((t) => typeof t === 'string' && t.trim())
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  const addl = sessionStorage.getItem('earlybird_additional_request') || ''
-  const line = addl.split('\n').find((l) => l.startsWith('피하고 싶은 조건:'))
-  if (!line) return []
-  const part = line.slice('피하고 싶은 조건:'.length).trim()
-  if (!part) return []
-  return part.split(/,\s*/).map((s) => s.trim()).filter(Boolean)
+  // 프리토타입: API는 물경력 축만 사용. 과거 세션의 다중 태그는 노출·전송하지 않음.
+  return [...DEFAULT_ANALYSIS_TAGS]
 }
 
-async function fetchPreviewAnalyzeApi(jobPostingText, avoidRiskTags) {
+async function fetchPreviewAnalyzeApi(jobPostingText, avoidRiskTags = DEFAULT_ANALYSIS_TAGS) {
   const response = await fetch('/api/preview/analyze', {
     method: 'POST',
     headers: {
@@ -80,9 +57,9 @@ function levelLabel(level) {
 }
 
 function levelHelp(level) {
-  if (level === 'high') return '공고 근거상 충돌 가능성이 큼'
-  if (level === 'medium') return '일부 신호가 있으나 추가 확인 필요'
-  if (level === 'low') return '현재 공고 기준 충돌 신호가 크지 않음'
+  if (level === 'high') return '공고 근거상 물경력 가능성을 더 의식해 볼 만함'
+  if (level === 'medium') return '일부 단서가 있으나 추가 확인이 필요함'
+  if (level === 'low') return '현재 공고 기준으로는 물경력 신호가 크지 않음'
   return '공고만으로는 판단 근거가 부족함'
 }
 
@@ -117,8 +94,6 @@ function agentDebugLog({ runId, hypothesisId, location, message, data }) {
 function App() {
   const [isPaying, setIsPaying] = useState(false)
   const [jobPostingText, setJobPostingText] = useState('')
-  const [avoidRiskTags, setAvoidRiskTags] = useState([])
-  const [additionalRequest, setAdditionalRequest] = useState('')
   const [isPreviewVisible, setIsPreviewVisible] = useState(false)
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('')
@@ -128,34 +103,21 @@ function App() {
   const [isContactSubmitting, setIsContactSubmitting] = useState(false)
   const [contactErrorMessage, setContactErrorMessage] = useState('')
   const [jobSubmitError, setJobSubmitError] = useState('')
-  const [openFaqIndex, setOpenFaqIndex] = useState(0)
   const resultSectionRef = useRef(null)
 
   const jobFormErrors = useMemo(() => {
     const errors = {
       jobPostingText: '',
-      avoidRiskTags: '',
     }
 
     if (!jobPostingText.trim()) {
-      errors.jobPostingText = '채용공고 텍스트 또는 URL을 입력해주세요.'
-    }
-
-    const filteredTags = avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))
-    if (filteredTags.length === 0) {
-      errors.avoidRiskTags = '피하고 싶은 조건을 1개 이상 선택해주세요.'
+      errors.jobPostingText = '채용공고 텍스트를 입력해주세요.'
     }
 
     return errors
-  }, [avoidRiskTags, jobPostingText])
+  }, [jobPostingText])
 
-  const isJobFormValid =
-    !jobFormErrors.jobPostingText && !jobFormErrors.avoidRiskTags
-
-  const toggleAvoidRiskTag = (tag) => {
-    if (EXCLUDED_AVOID_RISK_TAGS.has(tag)) return
-    setAvoidRiskTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
-  }
+  const isJobFormValid = !jobFormErrors.jobPostingText
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -165,7 +127,7 @@ function App() {
     if (unlockedParam === '1' || unlockedFlag === '1') {
       setIsUnlocked(true)
       setIsPreviewVisible(true)
-      setPaymentSuccessMessage('결제가 완료되어 전체 결과가 열렸어요. 아래에서 바로 확인할 수 있어요.')
+      setPaymentSuccessMessage('결제가 완료되어 물경력 상세 분석이 열렸어요. 아래에서 바로 확인할 수 있어요.')
       sessionStorage.removeItem('earlybird_unlocked')
       setTimeout(() => {
         resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -174,10 +136,10 @@ function App() {
       const storedJob = sessionStorage.getItem('earlybird_job_posting_text') || ''
       const storedTags = readStoredAvoidRiskTags()
       const filteredTags = storedTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))
+      const tagsForPreview = filteredTags.length > 0 ? filteredTags : DEFAULT_ANALYSIS_TAGS
 
-      if (storedJob.trim() && filteredTags.length > 0) {
+      if (storedJob.trim()) {
         setJobPostingText(storedJob.trim())
-        setAvoidRiskTags(filteredTags)
         setPreviewLoading(true)
         setPreviewResult(null)
         ;(async () => {
@@ -190,10 +152,10 @@ function App() {
               data: {
                 path: '/api/preview/analyze',
                 jobPostingTextLen: storedJob.trim().length,
-                avoidRiskTagsCount: filteredTags.length,
+                avoidRiskTagsCount: tagsForPreview.length,
               },
             })
-            const result = await fetchPreviewAnalyzeApi(storedJob, filteredTags)
+            const result = await fetchPreviewAnalyzeApi(storedJob, tagsForPreview)
             setPreviewResult(result)
           } catch {
             agentDebugLog({
@@ -236,10 +198,10 @@ function App() {
           data: {
             path: '/api/preview/analyze',
             jobPostingTextLen: jobPostingText.trim().length,
-            avoidRiskTagsCount: avoidRiskTags.length,
+            avoidRiskTagsCount: DEFAULT_ANALYSIS_TAGS.length,
           },
         })
-        const result = await fetchPreviewAnalyzeApi(jobPostingText, avoidRiskTags)
+        const result = await fetchPreviewAnalyzeApi(jobPostingText)
         agentDebugLog({
           runId: 'pre-fix',
           hypothesisId: 'H1',
@@ -269,21 +231,13 @@ function App() {
 
     if (!isJobFormValid) return
 
-    const mappedAdditionalRequest = [
-      `피하고 싶은 조건: ${avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t)).join(', ')}`,
-      additionalRequest.trim() ? `추가 요청: ${additionalRequest.trim()}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
+    const mappedAdditionalRequest = '분석 기준: 물경력 가능성 (프리토타입)'
 
     // TODO: 결제 전 이메일은 필수로 받지 않습니다. 결제 후 옵션으로 이메일 전달을 제공합니다.
     const customerEmailForPayment = buildFallbackPreviewEmail()
 
     sessionStorage.setItem('earlybird_job_posting_text', jobPostingText.trim())
-    sessionStorage.setItem(
-      EARLYBIRD_TAGS_KEY,
-      JSON.stringify(avoidRiskTags.filter((t) => !EXCLUDED_AVOID_RISK_TAGS.has(t))),
-    )
+    sessionStorage.setItem(EARLYBIRD_TAGS_KEY, JSON.stringify(DEFAULT_ANALYSIS_TAGS))
     sessionStorage.setItem('earlybird_additional_request', mappedAdditionalRequest)
     sessionStorage.setItem('earlybird_customer_email', customerEmailForPayment)
 
@@ -335,10 +289,6 @@ function App() {
     }
   }
 
-  const toggleFaq = (index) => {
-    setOpenFaqIndex((prev) => (prev === index ? -1 : index))
-  }
-
   return (
     <div className="landing-page">
       <nav>
@@ -348,21 +298,21 @@ function App() {
       </nav>
 
       <section className="hero">
-        <div className="hero-eyebrow">이직 실패 방지 리포트</div>
+        <div className="hero-eyebrow">채용공고 · 물경력 가능성 점검</div>
         <h1 className="hero-title">
-          좋은 공고인 줄 알았는데,
+          좋아 보이는 공고도,
           <br />
-          입사하니 블랙기업이라면?
+          실제로는 반복 운영·보조 업무 중심일 수 있습니다
         </h1>
         <p className="hero-sub">
-          채용공고 속 위험 신호를 AI로 먼저 찾아내고, 후회 없는 이직을 준비하세요.
+          JOBRISK는 채용공고를 읽고, 이 일이 경력에 남을지·물경력으로 흐를 가능성이 큰지 먼저 점검해 드립니다. (프리토타입: 물경력만)
         </p>
         <div className="hero-cta-group">
           <a href="#form" className="btn-primary hero-main-cta">
-            리스크 진단받고 안전하게 이직하기 →
+            채용공고 붙여넣고 무료 미리보기 보기 →
           </a>
           <span className="btn-price-note">
-            얼리버드 3,000원 · 리포트 받기 전 전액 환불
+            무료 미리보기 → 원하면 3,000원에 상세 분석 · 상세 확인 전 전액 환불
           </span>
         </div>
       </section>
@@ -371,15 +321,15 @@ function App() {
         <div className="trust-strip-inner">
           <div className="trust-item">
             <span className="trust-item-label">분석 기준</span>
-            채용공고 문구 기반 리스크 체크리스트
+            공고 문장 + 직무군 맥락 + 물경력 5개 축
           </div>
           <div className="trust-item">
-            <span className="trust-item-label">리포트 전달</span>
-            결제 후 1시간 이내 (평일 10시~18시)
+            <span className="trust-item-label">결과 확인</span>
+            결제 직후 이 페이지에서 상세 분석 확인
           </div>
           <div className="trust-item">
             <span className="trust-item-label">환불 정책</span>
-            리포트 전달 전 100% 환불 가능
+            상세 분석 확인 전 100% 환불 가능
           </div>
         </div>
       </section>
@@ -387,54 +337,86 @@ function App() {
       <section className="section">
         <div className="section-label section-centered">왜 필요한가</div>
         <h2 className="section-title section-centered">
-          다들 한 번씩은
+          공고는 짧고,
           <br />
-          겪어봤을 겁니다
+          실제 역할은 길게 남습니다
         </h2>
-        <p className="section-sub section-centered">좋은 말 뒤에 숨겨진 신호, 공고만 봐서는 알 수 없습니다.</p>
+        <p className="section-sub section-centered">
+          채용공고는 실제 업무를 다 보여주지 않습니다. 반복 운영·보조인지, 성과 책임이 있는 역할인지는 문장을 차근히 읽어야 드러납니다.
+        </p>
         <div className="pain-grid">
           <div className="pain-card">
-            <div className="pain-icon">🚨</div>
-            <div className="pain-title">'자율적인 분위기'의 진짜 의미</div>
+            <div className="pain-icon">📄</div>
+            <div className="pain-title">멋진 문장 뒤에 숨은 업무 성격</div>
             <div className="pain-desc">
-              &apos;오너십 발휘&apos;, &apos;빠르게 성장 중&apos;. 좋은 말 뒤에 숨겨진 신호를 채용공고 문구에서 먼저 찾아드립니다.
+              &apos;오너십&apos;, &apos;빠른 실행&apos; 같은 표현만으로는 역할 경계가 보이지 않을 수 있어요. 같은 &apos;운영&apos;이라도 직무에 따라 의미가 달라질 수 있습니다.
             </div>
           </div>
           <div className="pain-card">
-            <div className="pain-icon">📉</div>
-            <div className="pain-title">잡플래닛 4점도 믿을 수 없습니다</div>
+            <div className="pain-icon">🧭</div>
+            <div className="pain-title">공고만으로는 판단이 어려운 부분</div>
             <div className="pain-desc">
-              후기는 재직자가 씁니다. 채용공고는 회사가 직접 씁니다. 가장 솔직한 정보는 공고 안에 있습니다.
+              지표·우선순위·&apos;하지 않을 일&apos;이 빠져 있으면, 입사 후에야 실제 비중이 드러나는 경우가 많습니다. 그래서 지원 전에 질문 포인트를 잡는 게 중요합니다.
             </div>
           </div>
           <div className="pain-card">
-            <div className="pain-icon">💰</div>
-            <div className="pain-title">연봉은 왜 항상 내가 먼저 써야 할까요</div>
+            <div className="pain-icon">✅</div>
+            <div className="pain-title">JOBRISK가 하는 일</div>
             <div className="pain-desc">
-              정보 비대칭 상태에서 협상하면 항상 끌려다닙니다. 적정 연봉을 먼저 알고 들어가세요.
+              이 공고가 경력에 남는 일인지, 물경력으로 흐를 여지가 큰지 같은 기준으로 먼저 읽어 드립니다. 회사의 선악을 단정하지 않습니다.
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="section" aria-labelledby="how-read-title">
+        <div className="section-label section-centered">읽는 방식</div>
+        <h2 id="how-read-title" className="section-title section-centered">
+          물경력 가능성,
+          <br />
+          같은 문장도 직무군에 따라 다르게 봅니다
+        </h2>
+        <p className="section-sub section-centered">
+          자유형 요약이 아니라, 공고에서 직무 단서를 잡은 뒤 아래 다섯 축으로 정리합니다. 근거가 약하면 &apos;추가 확인 필요&apos; 톤을 유지합니다.
+        </p>
+        <ul className="landing-five-axes-list" aria-label="물경력 점검 다섯 축">
+          <li>
+            <strong>반복·운영 업무 비중</strong> — 운영·지원·반복 표현이 많을수록 물경력 가능성을 더 의식해 봅니다.
+          </li>
+          <li>
+            <strong>책임 범위</strong> — 역할 경계·우선순위 단서가 있는지 봅니다.
+          </li>
+          <li>
+            <strong>성과 측정 가능성</strong> — KPI·지표·평가 기준이 드러나는지 봅니다.
+          </li>
+          <li>
+            <strong>난이도·책임 상승</strong> — 기획·판단·개선·실험 등 난이도가 쌓이는지 봅니다.
+          </li>
+          <li>
+            <strong>전이 가능한 역량 축적</strong> — 다음 이직에서 설명할 만한 역량으로 남는지 봅니다.
+          </li>
+        </ul>
+        <p className="section-sub section-centered landing-five-axes-footnote">
+          같은 &apos;운영&apos;이라도 개발·인프라에서는 가치로 이어질 수 있고, 콘텐츠·마케에서는 집행 비중이 크면 물경력 쪽으로 더 보수적으로 읽을 수 있습니다.
+        </p>
       </section>
 
       <section className="demo-section">
         <div className="demo-inner">
           <div className="section-label section-centered">실제 분석 예시</div>
           <h2 className="section-title section-centered">
-            채용공고의 행간을
+            무료 미리보기와
             <br />
-            이렇게 읽어드립니다
+            유료 상세가 이렇게 달라집니다
           </h2>
           <div className="demo-grid">
             <div className="demo-card">
-              <div className="demo-card-label">채용공고 원문</div>
+              <div className="demo-card-label">채용공고 원문(일부)</div>
               <div className="demo-text">
                 <strong>[글로벌 뷰티 브랜드] 마케팅 담당자 채용</strong>
                 <br />
                 <br />
                 빠르게 성장 중인 뷰티 스타트업입니다.
-                <br />
-                인스타그램 팔로워 10만 보유.
                 <br />
                 <br />
                 <strong>주요업무</strong>
@@ -445,41 +427,47 @@ function App() {
                 <br />
                 <br />
                 <strong>혜택</strong>
-                <br />· 자율 출퇴근
-                <br />· 연봉 협의
-                <br />· 소규모 팀에서 오너십 발휘 가능
+                <br />· 자율 출퇴근 · 연봉 협의 · 소규모 팀에서 오너십 발휘 가능
               </div>
             </div>
             <div className="demo-card result">
-              <div className="demo-card-label">AI 분석 결과</div>
-              <div className="risk-badge">물경력 위험도 높음</div>
+              <div className="demo-card-label">무료 미리보기(감지)</div>
+              <div className="risk-badge">추가 확인이 필요해 보여요</div>
               <div className="result-item">
-                <div className="result-item-label">위험 신호</div>
+                <div className="result-item-label">한 줄</div>
+                <div className="result-item-content">채널·광고·협업·전략이 한 번에 묶여 있어, 집행 비중이 큰지 먼저 확인하는 편이 안전해요.</div>
+              </div>
+              <div className="result-item">
+                <div className="result-item-label">핵심 근거 1개</div>
                 <div className="result-item-content">
-                  SNS·광고·데이터 동시 담당 → <strong>전문성 없이 잡일 가능성</strong>
+                  <em>“SNS 채널 운영 및 콘텐츠 제작”</em>
                   <br />
-                  소규모팀 + 오너십 강조 → 혼자 다 해야 하는 구조
+                  → 운영·집행 단서로 읽을 수 있어, 전략·지표 소유 여부를 면접에서 확인할 가치가 있어요.
+                </div>
+              </div>
+              <div className="result-item">
+                <div className="result-item-label">짧은 이유</div>
+                <div className="result-item-content">
+                  · 역할 묶음이 넓어 우선순위 확인이 필요
                   <br />
-                  연봉 협의 → 정보 비대칭 협상
+                  · 성과 지표 문장이 약하면 평가 방식 확인
                 </div>
               </div>
               <div className="result-item">
-                <div className="result-item-label">적정 연봉</div>
+                <div className="result-item-label">확인 질문 1개</div>
+                <div className="result-item-content">캠페인에서 전략·실험·지표 개선 중 무엇을 직접 결정하나요?</div>
+              </div>
+              <div className="demo-card-label demo-card-label-follow">유료 상세(검증) 예시</div>
+              <div className="result-item">
+                <div className="result-item-label">직무군 · 5개 축</div>
                 <div className="result-item-content">
-                  경력 3년 기준 <strong>3,800~4,200만원</strong>
+                  마케팅·브랜딩 기준으로 반복·운영 비중, 책임 범위, 성과 측정, 난이도, 전이 역량을 축별로 정리합니다.
                 </div>
               </div>
               <div className="result-item">
-                <div className="result-item-label">커리어 패스 전망</div>
+                <div className="result-item-label">근거 · 면접</div>
                 <div className="result-item-content">
-                  직무 범위 과다로 3년 후 <strong>&apos;무엇을 잘하는 사람&apos;으로 포지셔닝 어려움</strong>
-                </div>
-              </div>
-              <div className="result-item">
-                <div className="result-item-label">면접 필수 질문</div>
-                <div className="result-item-content">
-                  · 전임자는 왜 퇴사했나요?
-                  <br />· 팀 규모와 각자 담당 업무는?
+                  공고 원문 3~5개를 골라 묶어 보여 주고, 면접 질문 5~7개에 괜찮은 답/확인 필요 답변 가이드를 붙입니다.
                 </div>
               </div>
             </div>
@@ -487,202 +475,97 @@ function App() {
         </div>
       </section>
 
-      <section className="section market-truth-section" aria-labelledby="market-truth-title">
-        <div className="section-label section-centered">현실 데이터</div>
-        <h2 id="market-truth-title" className="section-title section-centered">
-          채용공고, 그대로 믿으면 60%가 후회합니다
-        </h2>
-        <p className="section-sub section-centered market-truth-sub">
-          회사는 채용공고를 &apos;진실&apos;이 아닌 &apos;마케팅&apos;으로 씁니다.
-          <br />
-          Jobrisk는 그 광고 이면에 가려진 실무의 민낯과 커리어의 함정을 데이터로 걸러내어,
-          <br />
-          구직자가 &apos;속아서 입사하는 일&apos;을 막아드립니다.
-        </p>
-        <div className="market-truth-grid">
-          <article className="market-truth-card">
-            <p className="market-truth-value">60%</p>
-            <h3 className="market-truth-headline">채용공고와 실제 업무, 60%가 다릅니다</h3>
-            <p className="market-truth-desc">
-              채용공고는 회사가 좋은 인재를 꼬시기 위해 만든 &apos;마케팅 문서&apos;입니다. 팩트만 골라내는 필터가 없다면,
-              불일치의 리스크는 구직자가 감당해야 합니다.
-              <span className="market-truth-source">출처: 2015, 알바천국</span>
-            </p>
-          </article>
-
-          <article className="market-truth-card">
-            <p className="market-truth-value">45.1%</p>
-            <h3 className="market-truth-headline">취업 사기, 절대 남의 일이 아닙니다</h3>
-            <p className="market-truth-desc">
-              구직 경험자 10명 중 4명 이상이 사기성 채용을 경험했습니다. 감에 의존하지 말고 데이터로 검증하세요.
-              <span className="market-truth-source">출처: 2021, 인크루트</span>
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <div className="divider" />
-
-      <section className="stakes-section">
+      <section className="stakes-section" aria-label="지원 전 점검">
         <div className="stakes-inner">
-          <div className="stakes-number">1~2년</div>
-          <div className="stakes-caption">잘못된 이직 한 번이 날려버리는 커리어</div>
+          <div className="stakes-caption">지원 전에 한 번만 더 읽어볼 가치가 있습니다</div>
           <p className="stakes-desc">
-            퇴사를 결심하고 다시 이직할 때까지,
+            공고 문장만으로 모든 것을 단정하지 않습니다.
             <br />
-            그 공백기에 동기들은 계속 앞으로 나아갑니다.
-            <br />
-            공고 하나를 잘못 읽은 대가치고는 너무 큽니다.
+            다만 &apos;어디를 더 물어봐야 하는지&apos;를 미리 정리해 두면, 면접에서 역할과 성과 기준을 빠르게 확인할 수 있습니다.
           </p>
         </div>
       </section>
 
       <section className="section">
-        <div className="section-label section-centered">분석 항목</div>
-        <h2 className="section-title section-centered">이런 분석을 해드립니다</h2>
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-num">01</div>
-            <div className="feature-title">물경력 위험도 분석</div>
-            <div className="feature-desc">
-              공고 문구에서 위험 신호를 찾아냅니다. 입사 후 후회하는 가장 흔한 패턴입니다.
-            </div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-num">02</div>
-            <div className="feature-title">커리어 패스 적합성</div>
-            <div className="feature-desc">
-              이 포지션이 내 커리어 방향에 맞는지, 3년 후 어떤 사람이 되어 있을지 알려드립니다.
-            </div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-num">03</div>
-            <div className="feature-title">적정 연봉 추정</div>
-            <div className="feature-desc">
-              연봉 미기재 공고의 적정 금액을 추정해드립니다. 협상 테이블에서 끌려다니지 마세요.
-            </div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-num">04</div>
-            <div className="feature-title">면접 필수 질문</div>
-            <div className="feature-desc">
-              입사 전 반드시 확인해야 할 질문 리스트. 면접에서 주도권을 쥐는 가장 빠른 방법입니다.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section">
         <div className="section-label section-centered">사용 방법</div>
-        <h2 className="section-title section-centered">3분이면 충분합니다</h2>
-        <p className="section-sub section-centered">복잡한 것 없습니다. 공고를 붙여넣기만 하면 됩니다.</p>
+        <h2 className="section-title section-centered">세 단계면 충분합니다</h2>
+        <p className="section-sub section-centered">공고 본문만 있으면 됩니다. 별도 회피 조건 선택은 하지 않아요.</p>
         <div className="steps-grid">
           <div className="step-item">
             <div className="step-num">01</div>
-            <div className="step-title">내 조건을 입력합니다</div>
-            <div className="step-desc">연차, 희망 연봉, 피하고 싶은 조건을 간단히 적어주세요</div>
+            <div className="step-title">채용공고를 붙여넣습니다</div>
+            <div className="step-desc">지원을 고려 중인 공고 본문을 그대로 넣어 주세요</div>
           </div>
           <div className="step-item">
             <div className="step-num">02</div>
-            <div className="step-title">채용공고를 붙여넣습니다</div>
-            <div className="step-desc">지원하려는 공고 텍스트를 그대로 복사해서 넣으면 됩니다</div>
+            <div className="step-title">무료 미리보기로 물경력 가능성을 봅니다</div>
+            <div className="step-desc">한 줄 결론, 핵심 근거 1개, 짧은 이유, 확인 질문 1개까지 감지해 드립니다</div>
           </div>
           <div className="step-item">
             <div className="step-num">03</div>
-            <div className="step-title">리포트를 받습니다</div>
-            <div className="step-desc">1시간 이내 이메일로 분석 결과를 보내드립니다 (평일 10시~18시)</div>
+            <div className="step-title">더 깊게 보려면 상세 분석을 엽니다</div>
+            <div className="step-desc">결제 후 이 페이지에서 5개 축·근거·면접 가이드를 바로 이어서 볼 수 있어요</div>
           </div>
         </div>
       </section>
 
       <section className="pricing-section" id="pricing">
-        <div className="section-label section-centered">얼리버드 혜택</div>
-        <h2 className="section-title pricing-title-custom">지금 바로 시작하세요</h2>
+        <div className="section-label section-centered">가격</div>
+        <h2 className="section-title pricing-title-custom">무료 미리보기 후, 필요할 때만 상세 분석</h2>
         <div className="pricing-card">
           <div className="pricing-badge">얼리버드 한정</div>
           <div className="pricing-price">
             <span>₩</span>3,000
           </div>
-          <div className="pricing-original">정식 출시가 월 9,900원</div>
+          <div className="pricing-original">정식 출시가 월 9,900원(예정)</div>
           <ul className="pricing-includes">
-            <li>채용공고 AI 분석 리포트 1회</li>
-            <li>물경력 위험도 · 연봉 추정 · 면접 질문 포함</li>
-            <li>정식 출시 시 1개월 무료 체험권</li>
-            <li>얼리버드 전용 혜택 우선 안내</li>
+            <li>채용공고 1건 기준 물경력 가능성 상세 분석</li>
+            <li>직무군 기준 해석 + 5개 축 + 근거 + 면접 질문·답변 가이드</li>
+            <li>결제 직후 이 페이지에서 바로 확인</li>
+            <li>정식 출시 시 1개월 무료 체험권(안내 예정)</li>
           </ul>
           <a href="#form" className="btn-primary pricing-btn">
-            내 커리어 리스크 진단받기 →
+            채용공고 붙여넣고 무료 미리보기 보기 →
           </a>
-          <p className="pricing-refund">리포트 받기 전 전액 환불 가능 · 문의 getmuno@gmail.com</p>
+          <p className="pricing-refund">상세 분석을 확인하기 전에는 전액 환불 가능 · 문의 getmuno@gmail.com</p>
         </div>
       </section>
 
       <section className="form-section" id="form">
         <div className="section-label section-centered">채용공고 입력</div>
         <h2 className="section-title form-title-custom">
-          분석받고 싶은 공고를
+          이 공고,
           <br />
-          붙여넣어 주세요
+          물경력 가능성부터 보기
         </h2>
         <p className="form-intro-note">
-          무료 미리보기 입력은 2가지만 필수로 받습니다: 공고, 피하고 싶은 조건
+          공고 본문만 붙여넣으면 무료 미리보기가 시작돼요. 지금 프리토타입은 <strong>물경력 가능성</strong>만 다룹니다. 회사
+          판정·연봉 추정·다른 리스크 종합은 하지 않아요.
         </p>
         <div className="form-card">
           <form onSubmit={handleJobFormPreview}>
             <div className="form-group">
               <label className="form-label" htmlFor="job-posting-text">
-                채용공고 텍스트 또는 URL
+                채용공고 텍스트
               </label>
               <textarea
                 id="job-posting-text"
                 className="form-textarea"
-                placeholder="공고 본문을 붙여넣거나 URL을 입력해주세요"
+                placeholder="채용공고 전체 내용을 입력해주세요"
                 value={jobPostingText}
                 onChange={(event) => setJobPostingText(event.target.value)}
                 style={{ minHeight: '200px' }}
               />
               {jobFormErrors.jobPostingText ? <p className="contact-error">{jobFormErrors.jobPostingText}</p> : null}
             </div>
-            <div className="form-group">
-              <p className="form-label">피하고 싶은 조건</p>
-              <div className="chip-group" role="group" aria-label="피하고 싶은 조건 선택">
-                {AVOID_RISK_OPTIONS.map((option) => {
-                  const isSelected = avoidRiskTags.includes(option)
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`chip-button${isSelected ? ' is-selected' : ''}`}
-                      aria-pressed={isSelected}
-                      onClick={() => toggleAvoidRiskTag(option)}
-                    >
-                      {option}
-                    </button>
-                  )
-                })}
-              </div>
-              {jobFormErrors.avoidRiskTags ? <p className="contact-error">{jobFormErrors.avoidRiskTags}</p> : null}
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="additional-request">
-                추가 요청사항 <span className="optional">선택</span>
-              </label>
-              <textarea
-                id="additional-request"
-                className="form-textarea"
-                placeholder="예) 피하고 싶은 팀 문화, 산업군, 꼭 확인하고 싶은 포인트"
-                value={additionalRequest}
-                onChange={(event) => setAdditionalRequest(event.target.value)}
-              />
-            </div>
             {jobSubmitError ? <p className="contact-error">{jobSubmitError}</p> : null}
             <button type="submit" className="form-submit" disabled={isPaying || !isJobFormValid}>
-              {isPaying ? '잠시만 기다려주세요...' : '무료 미리보기 결과 보기'}
+              {isPaying ? '잠시만 기다려주세요...' : '무료 미리보기로 물경력 가능성 확인하기'}
             </button>
             <p className="form-note">
-              이메일은 무료 미리보기 입력 단계에서 받지 않습니다
+              결과는 이 페이지에서 바로 확인해요.
               <br />
-              결제/리포트 전달 단계에서 별도 확인됩니다
+              이메일로 보내기 등은 준비 중이며, 결제 단계에서도 이메일을 필수로 받지 않아요.
             </p>
           </form>
         </div>
@@ -691,7 +574,7 @@ function App() {
       {isPreviewVisible ? (
         <section ref={resultSectionRef} className="section preview-result-section" id="result" aria-label="무료 미리보기 결과">
           <div className="section-label section-centered">무료 미리보기 결과</div>
-          <h2 className="section-title section-centered">선택한 조건 기준으로 먼저 걸러봤어요</h2>
+          <h2 className="section-title section-centered">공고 기준으로 물경력 가능성을 먼저 짚었어요</h2>
 
           {paymentSuccessMessage ? (
             <div className="payment-success-banner" role="status" aria-live="polite">
@@ -719,70 +602,124 @@ function App() {
                   </div>
                 ) : null}
 
-                {preview ? (
-                  <div className="preview-block preview-summary-frame" aria-label="상단 요약">
-                    {preview?.avoidConditionMatches?.length ? (
-                      <div className="preview-summary-section">
-                        <h3 className="preview-heading">선택한 조건과의 충돌 요약</h3>
-                        <div className="avoid-match-list">
-                          {(preview.previewTopMatches?.length ? preview.previewTopMatches : preview.avoidConditionMatches.slice(0, 3)).map(
-                            (m) => (
-                            <div key={m.tag} className={`avoid-match-card level-${m.level || 'needs_review'}`}>
-                              <div className="avoid-match-header">
-                                <span className="selected-tag">{m.tag}</span>
-                                <span className="level-pill" title={levelHelp(m.level)}>
-                                  {levelLabel(m.level)}
-                                </span>
-                              </div>
-                              <div className="preview-card-desc">{m.reason}</div>
-
-                              {m.evidenceText ? (
-                                <div className="preview-inline-block" aria-label="근거">
-                                  <div className="preview-inline-title">원문 근거</div>
-                                  <div className="preview-inline-quote">{m.evidenceText}</div>
-                                  {m.evidenceWhy ? <div className="preview-inline-why">{m.evidenceWhy}</div> : null}
-                                </div>
-                              ) : null}
-
-                              {m.interviewQuestion ? (
-                                <div className="preview-inline-block" aria-label="면접 질문">
-                                  <div className="preview-inline-title">면접 질문</div>
-                                  <div className="preview-inline-question">
-                                    <strong>{m.interviewQuestion}</strong>
-                                  </div>
-                                  {m.interviewQuestionWhy ? (
-                                    <div className="preview-inline-why">{m.interviewQuestionWhy}</div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
-                          )
-                          )}
-                        </div>
-                        {preview.previewOtherMatchesSummary ? (
-                          <p className="preview-subline preview-other-summary">{preview.previewOtherMatchesSummary}</p>
+                {preview && !isUnlocked && preview.freePreview ? (
+                  <div className="preview-block preview-summary-frame" aria-label="무료 미리보기 요약">
+                    <p className="preview-subline preview-family-note">
+                      직무군 추정: <strong>{preview.freePreview.jobFamilyLabel}</strong>
+                    </p>
+                    <h3 className="preview-heading">물경력 가능성 한 줄</h3>
+                    <p className="preview-line preview-free-headline">
+                      <strong>{preview.freePreview.headline}</strong>
+                      {preview.freePreview.headlineDetail
+                        ? ` — ${toFirstSentence(preview.freePreview.headlineDetail)}`
+                        : ''}
+                    </p>
+                    {preview.freePreview.topEvidence?.quote ? (
+                      <div className="preview-inline-block" aria-label="핵심 근거">
+                        <div className="preview-inline-title">가장 강한 근거(공고 원문)</div>
+                        <div className="preview-inline-quote">{preview.freePreview.topEvidence.quote}</div>
+                        {preview.freePreview.topEvidence.interpretation ? (
+                          <div className="preview-inline-why">{preview.freePreview.topEvidence.interpretation}</div>
                         ) : null}
                       </div>
                     ) : null}
+                    {Array.isArray(preview.freePreview.shortReasons) && preview.freePreview.shortReasons.length ? (
+                      <div className="preview-inline-block" aria-label="짧은 이유">
+                        <div className="preview-inline-title">짧게 짚어본 포인트</div>
+                        <ul className="preview-reason-bullets">
+                          {preview.freePreview.shortReasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {preview.freePreview.verificationQuestion ? (
+                      <div className="preview-inline-block" aria-label="확인 질문">
+                        <div className="preview-inline-title">확인 질문(1개)</div>
+                        <div className="preview-inline-question">
+                          <strong>{preview.freePreview.verificationQuestion}</strong>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
-                    <div className="preview-summary-section">
-                      <h3 className="preview-heading">한 줄 지원 판단</h3>
-                      <p className="preview-line">
-                        <strong>{preview.supportDecision?.label || '확인 후 지원'}</strong>
-                        {preview.supportDecision?.summary ? ` — ${toFirstSentence(preview.supportDecision.summary)}` : ''}
-                      </p>
-                      {preview.missingSummary ? <p className="preview-subline">{preview.missingSummary}</p> : null}
-                    </div>
+                {preview && !isUnlocked && !preview.freePreview ? (
+                  <div className="preview-block preview-summary-frame" aria-label="미리보기 형식 안내">
+                    <h3 className="preview-heading">미리보기 형식을 불러오지 못했어요</h3>
+                    <p className="preview-line">
+                      정상 응답이라면 무료 미리보기 블록이 함께 내려옵니다. 캐시된 예전 응답이거나 일시 오류일 수 있어요. 공고를
+                      다시 붙여넣고 한 번 더 시도해 주세요.
+                    </p>
                   </div>
                 ) : null}
 
                 {isUnlocked && preview ? (
                   <div className="preview-block preview-detail-frame" aria-label="상세 분석">
-                    <h3 className="preview-heading">상세 분석</h3>
+                    <h3 className="preview-heading">물경력 상세 분석</h3>
 
-                    {preview?.avoidConditionMatches?.length ? (
+                    {preview.paidDetail ? (
+                      <>
+                        <div className="preview-block-inner">
+                          <h4 className="preview-subheading">요약 · 직무군</h4>
+                          <p className="preview-line">
+                            <strong>{preview.paidDetail.jobFamilyLabel}</strong>
+                          </p>
+                          <p className="preview-card-desc">{preview.paidDetail.finalSummary}</p>
+                        </div>
+                        <div className="preview-block-inner">
+                          <h4 className="preview-subheading">물경력 점검 5개 축</h4>
+                          <ul className="preview-five-axes">
+                            {(preview.paidDetail.fiveAxes || []).map((ax) => (
+                              <li key={ax.key}>
+                                <strong>{ax.label}</strong> — {ax.levelLabel}
+                                <div className="preview-axis-summary">{ax.summary}</div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        {preview.paidDetail.keyEvidence?.length ? (
+                          <div className="preview-block-inner">
+                            <h4 className="preview-subheading">핵심 근거</h4>
+                            <ul className="preview-evidence-list">
+                              {preview.paidDetail.keyEvidence.map((ev) => (
+                                <li key={ev.quote}>
+                                  <span className="evidence-badge">원문</span>
+                                  <span className="evidence-text">{ev.quote}</span>
+                                  {ev.note ? <div className="preview-inline-why">{ev.note}</div> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        <div className="preview-block-inner">
+                          <h4 className="preview-subheading">면접에서 꼭 물어볼 질문</h4>
+                          <ul className="preview-question-list paid-question-list">
+                            {(preview.paidDetail.interviewQuestions || []).map((q) => (
+                              <li key={q.question}>
+                                <strong>{q.question}</strong>
+                                {q.whyThisMatters ? <div className="preview-subline">{q.whyThisMatters}</div> : null}
+                                <div className="preview-answer-guide">
+                                  <span className="answer-pill answer-good">괜찮은 답</span> {q.ifGood}
+                                  <br />
+                                  <span className="answer-pill answer-risk">확인 필요</span> {q.ifRisky}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        {preview.paidDetail.actionGuide ? (
+                          <div className="preview-block-inner">
+                            <h4 className="preview-subheading">다음 행동 가이드</h4>
+                            <p className="preview-card-desc">{preview.paidDetail.actionGuide}</p>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+
+                    {!preview.paidDetail && preview?.avoidConditionMatches?.length ? (
                       <div className="preview-block-inner">
-                        <h4 className="preview-subheading">선택한 조건별 근거</h4>
+                        <h4 className="preview-subheading">물경력 신호별 근거</h4>
                         <div className="avoid-match-list">
                           {preview.avoidConditionMatches.map((m) => (
                             <div key={m.tag} className={`avoid-match-card level-${m.level || 'needs_review'}`}>
@@ -825,7 +762,7 @@ function App() {
                       </div>
                     ) : null}
 
-                    {preview?.keyPoints?.length ? (
+                    {!preview.paidDetail && preview?.keyPoints?.length ? (
                       <div className="preview-block-inner">
                         <h4 className="preview-subheading">추가 확인 포인트</h4>
                         <div className="preview-card-grid">
@@ -851,7 +788,7 @@ function App() {
                       </div>
                     ) : null}
 
-                    {preview?.interviewQuestions?.length ? (
+                    {!preview.paidDetail && preview?.interviewQuestions?.length ? (
                       <div className="preview-block-inner">
                         <h4 className="preview-subheading">면접 질문(전체)</h4>
                         <ul className="preview-question-list">
@@ -871,13 +808,13 @@ function App() {
                   {!isUnlocked ? (
                     <>
                       <button type="button" className="btn-primary preview-pay-cta" onClick={handleStartPayment} disabled={isPaying}>
-                        {isPaying ? '결제창 여는 중...' : '3,000원으로 전체 결과 보기'}
+                        {isPaying ? '결제창 여는 중...' : '3,000원으로 물경력 상세 분석 보기'}
                       </button>
-                      <p className="preview-cta-note">결제 후 바로 전체 결과를 확인할 수 있어요. 원하면 이메일로도 받아볼 수 있어요.</p>
+                      <p className="preview-cta-note">결제 직후 이 화면에서 5개 축·근거·면접 가이드가 열려요. 이메일 발송은 선택·준비 중입니다.</p>
                     </>
                   ) : (
                     <>
-                      <div className="unlocked-note">이제 상세 분석을 바로 확인할 수 있어요.</div>
+                      <div className="unlocked-note">이제 물경력 상세 분석을 이 화면에서 바로 확인할 수 있어요.</div>
                       <div className="postpay-actions">
                         <button type="button" className="btn-primary btn-secondary-size" disabled>
                           이 결과를 이메일로 받기 (준비 중)
@@ -899,14 +836,15 @@ function App() {
         <div className="founder-card">
           <div className="founder-label">서비스를 만든 이유</div>
           <p className="founder-quote">
-            저는 이직을 준비할 때 &quot;일단 취업이 되는 게 먼저&quot;라는 생각에 공고를 제대로 읽지 않았습니다.
+            저는 이직을 준비할 때 공고를 꼼꼼히 읽기보다 &quot;일단 붙어보자&quot;에 가깝게 지원했습니다.
             <br />
-            결과는 <em>취업사기, 블랙기업, 물경력</em>을 모두 경험하는 것이었습니다.
+            막상 합류해 보니 <em>말로는 성장, 실제로는 반복 운영·보조 업무</em>에 시간이 많이 갔습니다.
             <br />
             <br />
-            그 1~2년을 되돌릴 수 없었습니다.
+            회사를 재판하는 도구는 아니지만, 지원 전에 <em>물경력 가능성</em>을 같은 기준으로 점검할 수 있으면 조금은 덜
+            막막하겠다고 느꼈습니다.
             <br />
-            적어도 다음 사람은 막아보고 싶었습니다.
+            그래서 JOBRISK를 만들고 있습니다.
           </p>
           <div className="founder-byline">
             <div className="founder-avatar">H</div>
@@ -918,51 +856,7 @@ function App() {
         </div>
       </section>
 
-      <section className="faq-section">
-        <div className="section-label section-centered">자주 묻는 질문</div>
-        <h2 className="section-title faq-title-custom section-centered">궁금한 점이 있으신가요</h2>
-
-        <div className={`faq-item ${openFaqIndex === 0 ? 'open' : ''}`}>
-          <button type="button" className="faq-question" onClick={() => toggleFaq(0)} aria-expanded={openFaqIndex === 0}>
-            AI 분석이라 정확한가요?
-            <span className="faq-icon">+</span>
-          </button>
-          <div className="faq-answer">
-            사람이 혼자 공고를 읽을 때 놓치기 쉬운 물경력 신호, 연봉 정보 비대칭, 조직 문화 위험 요소를 체계적인
-            기준으로 짚어드립니다. 실제 입사 경험 피드백을 쌓아 더 정확한 분석을 만들어가고 있습니다.
-          </div>
-        </div>
-
-        <div className={`faq-item ${openFaqIndex === 1 ? 'open' : ''}`}>
-          <button type="button" className="faq-question" onClick={() => toggleFaq(1)} aria-expanded={openFaqIndex === 1}>
-            ChatGPT에 물어보면 안 되나요?
-            <span className="faq-icon">+</span>
-          </button>
-          <div className="faq-answer">
-            물론 직접 물어볼 수 있습니다. 다만 어떤 기준으로 어떤 질문을 해야 하는지 모르면 중요한 신호를 놓칩니다.
-            jobrisk는 채용공고 분석에 특화된 기준으로 일관되게 분석해드립니다.
-          </div>
-        </div>
-
-        <div className={`faq-item ${openFaqIndex === 2 ? 'open' : ''}`}>
-          <button type="button" className="faq-question" onClick={() => toggleFaq(2)} aria-expanded={openFaqIndex === 2}>
-            환불은 어떻게 하나요?
-            <span className="faq-icon">+</span>
-          </button>
-          <div className="faq-answer">
-            리포트를 받으시기 전에는 전액 환불 가능합니다. 리포트 수령 후에는 환불이 어렵습니다. 환불 문의는
-            getmuno@gmail.com으로 연락주세요.
-          </div>
-        </div>
-
-        <div className={`faq-item ${openFaqIndex === 3 ? 'open' : ''}`}>
-          <button type="button" className="faq-question" onClick={() => toggleFaq(3)} aria-expanded={openFaqIndex === 3}>
-            내 이력서 정보가 저장되나요?
-            <span className="faq-icon">+</span>
-          </button>
-          <div className="faq-answer">입력하신 정보는 분석 목적으로만 사용되며, 분석 완료 후 별도로 저장하지 않습니다.</div>
-        </div>
-      </section>
+      <FAQ variant="landing" />
 
       <section className="contact-section">
         <div className="section-label section-centered">추가 문의</div>

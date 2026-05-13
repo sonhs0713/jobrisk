@@ -1,26 +1,26 @@
 function Solution() {
   const features = [
     {
-      title: '물경력 위험도 분석',
-      description: '공고 문구에서 위험 신호를 찾아냅니다',
+      title: '직무군 맥락',
+      description: '공고에서 직무 단서를 잡고, 그 직무에 맞게 문장을 읽습니다',
     },
     {
-      title: '커리어 패스 적합성',
-      description: '이 포지션이 내 커리어에 맞는지 알려줍니다',
+      title: '물경력 5개 축(유료)',
+      description: '반복 비중·책임 범위·성과 측정·난이도·전이 역량을 축별로 정리합니다',
     },
     {
-      title: '적정 연봉 추정',
-      description: '연봉 미기재 공고의 적정 금액을 추정해드립니다',
+      title: '무료 미리보기(감지)',
+      description: '한 줄·근거 1개·짧은 이유·확인 질문 1개로 먼저 감지합니다',
     },
     {
-      title: '면접 필수 질문',
-      description: '입사 전 반드시 확인해야 할 질문 리스트',
+      title: '면접 가이드(유료)',
+      description: '확인할 질문과 괜찮은 답·추가 확인이 필요한 답을 짧게 붙입니다',
     },
   ]
 
   return (
     <section className="solution-section">
-      <h2 className="solution-title">이런 분석을 해드립니다</h2>
+      <h2 className="solution-title">JOBRISK가 하는 일</h2>
       <ol className="solution-list">
         {features.map((feature, index) => (
           <li className="solution-item" key={feature.title}>
