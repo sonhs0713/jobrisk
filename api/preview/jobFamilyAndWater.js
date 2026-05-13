@@ -125,6 +125,13 @@ function axisLevelFromConcern(concern, parseLow) {
   return 'needs_review'
 }
 
+function axisLabelKo(level) {
+  if (level === 'high') return '높음'
+  if (level === 'medium') return '중간'
+  if (level === 'low') return '낮음'
+  return '추가 확인 필요'
+}
+
 export function computeFiveAxes({ lines, extraction, jobFamily }) {
   const text = joinedText(lines)
   const parseLow = extraction?.parseMeta?.parseConfidence < 0.45 || extraction?.parseMeta?.sectionDetectionFailed

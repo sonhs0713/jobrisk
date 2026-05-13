@@ -1153,6 +1153,13 @@ span {
   font-weight: 800;
   color: var(--white);
   letter-spacing: -0.02em;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.landing-page .nav-logo:hover {
+  color: var(--white);
+  opacity: 0.92;
 }
 
 .landing-page .nav-logo span {

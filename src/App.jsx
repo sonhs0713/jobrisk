@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Footer from './components/Footer'
 import FAQ from './components/FAQ'
 import { requestEarlyBirdPayment } from './lib/portonePayment'
@@ -73,24 +74,6 @@ function toFirstSentence(text) {
   return s.length > 120 ? `${s.slice(0, 120)}…` : s
 }
 
-function agentDebugLog({ runId, hypothesisId, location, message, data }) {
-  // #region agent log
-  fetch('http://127.0.0.1:7579/ingest/be5faab1-4bf7-4191-81cc-c89d7a00a55b', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'dc5642' },
-    body: JSON.stringify({
-      sessionId: 'dc5642',
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-}
-
 function App() {
   const [isPaying, setIsPaying] = useState(false)
   const [jobPostingText, setJobPostingText] = useState('')
@@ -144,27 +127,9 @@ function App() {
         setPreviewResult(null)
         ;(async () => {
           try {
-            agentDebugLog({
-              runId: 'post-pay',
-              hypothesisId: 'H1',
-              location: 'src/App.jsx:unlock_restore_preview',
-              message: 'Restoring preview after payment return',
-              data: {
-                path: '/api/preview/analyze',
-                jobPostingTextLen: storedJob.trim().length,
-                avoidRiskTagsCount: tagsForPreview.length,
-              },
-            })
             const result = await fetchPreviewAnalyzeApi(storedJob, tagsForPreview)
             setPreviewResult(result)
           } catch {
-            agentDebugLog({
-              runId: 'post-pay',
-              hypothesisId: 'H2',
-              location: 'src/App.jsx:unlock_restore_preview_catch',
-              message: 'Preview restore after payment failed',
-              data: {},
-            })
             setPreviewResult(null)
           } finally {
             setPreviewLoading(false)
@@ -190,34 +155,9 @@ function App() {
 
     ;(async () => {
       try {
-        agentDebugLog({
-          runId: 'pre-fix',
-          hypothesisId: 'H1',
-          location: 'src/App.jsx:pre_fetch_preview',
-          message: 'Preview analyze fetch starting',
-          data: {
-            path: '/api/preview/analyze',
-            jobPostingTextLen: jobPostingText.trim().length,
-            avoidRiskTagsCount: DEFAULT_ANALYSIS_TAGS.length,
-          },
-        })
         const result = await fetchPreviewAnalyzeApi(jobPostingText)
-        agentDebugLog({
-          runId: 'pre-fix',
-          hypothesisId: 'H1',
-          location: 'src/App.jsx:post_fetch_preview',
-          message: 'Preview analyze fetch completed',
-          data: { ok: true },
-        })
         setPreviewResult(result)
       } catch {
-        agentDebugLog({
-          runId: 'pre-fix',
-          hypothesisId: 'H2',
-          location: 'src/App.jsx:catch_preview',
-          message: 'Preview analyze failed (caught)',
-          data: {},
-        })
         // 내부 오류는 노출하지 않고, 화면에는 fallback 결과가 없을 경우만 안내
         setPreviewResult(null)
       } finally {
@@ -292,9 +232,9 @@ function App() {
   return (
     <div className="landing-page">
       <nav>
-        <div className="nav-logo">
+        <Link to="/" className="nav-logo" aria-label="JOBRISK 홈으로 이동">
           JOB<span>RISK</span>
-        </div>
+        </Link>
       </nav>
 
       <section className="hero">
