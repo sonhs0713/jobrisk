@@ -2,8 +2,25 @@ import './globals.css'
 import Script from 'next/script'
 
 export const metadata = {
-  title: 'JobRisk',
-  description: '채용공고 원문만 보고 물경력 가능성을 미리 확인하는 서비스',
+  metadataBase: new URL('https://jobrisk.vercel.app'),
+  title: {
+    default: '잡리스크 | 채용공고 물경력 가능성 분석',
+    template: '%s | 잡리스크',
+  },
+  description: '채용공고 원문만 보고 물경력 가능성과 면접 확인 포인트를 먼저 짚어주는 서비스',
+  applicationName: '잡리스크',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
+  openGraph: {
+    title: '잡리스크 | 채용공고 물경력 가능성 분석',
+    description: '채용공고 원문만 보고 물경력 가능성과 면접 확인 포인트를 먼저 짚어주는 서비스',
+    siteName: '잡리스크',
+    locale: 'ko_KR',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }) {

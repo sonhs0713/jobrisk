@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { buildDetailReport, buildPreview } from './lib/analysis.js'
+import { relayFeedbackToFormsfree } from './lib/feedbackRelay.js'
 import {
   createOrder,
   getAnalysis,
@@ -399,6 +400,11 @@ app.post('/api/feedback', async (req, res) => {
     }
 
     await saveFeedback({
+      analysisId,
+      rating,
+      note: String(req.body?.note || '').trim(),
+    })
+    await relayFeedbackToFormsfree({
       analysisId,
       rating,
       note: String(req.body?.note || '').trim(),
