@@ -3,7 +3,7 @@ import { after, before, beforeEach, test } from 'node:test'
 
 import { app } from '../src/index.js'
 import { verifyPortOnePayment } from '../src/lib/portone.js'
-import { resetMemoryStoreForTest } from '../src/lib/store.js'
+import { deleteOrderForTest, resetMemoryStoreForTest } from '../src/lib/store.js'
 
 process.env.OPENAI_API_KEY = ''
 process.env.PORTONE_API_SECRET = ''
@@ -177,6 +177,52 @@ test('payment verify is idempotent after the order is already paid', async () =>
   assert.equal(second.response.status, 200)
   assert.equal(second.data.reportAccessToken, first.data.reportAccessToken)
   assert.equal(typeof second.data.detailStatus, 'string')
+})
+
+test('payment verify recovers when local order is missing but PortOne confirms payment', async () => {
+  const preview = await createPreview()
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId })
+
+  deleteOrderForTest(prepared.data.orderId)
+
+  const originalFetch = globalThis.fetch
+  const originalSecret = process.env.PORTONE_API_SECRET
+  process.env.PORTONE_API_SECRET = 'test_secret'
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    if (url.includes('api.portone.io/payments/')) {
+      return new Response(
+        JSON.stringify({
+          status: 'PAID',
+          orderId: prepared.data.orderId,
+          totalAmount: 3000,
+          transactionId: 'tx_recovered_1',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
+    }
+    return originalFetch(input, init)
+  }
+
+  try {
+    const verified = await post('/api/payments/verify', {
+      paymentId: prepared.data.orderId,
+      analysisId: preview.analysisId,
+      orderId: prepared.data.orderId,
+      amount: 3000,
+    })
+
+    assert.equal(verified.response.status, 200)
+    assert.equal(verified.data.ok, true)
+    assert.ok(verified.data.reportAccessToken)
+    assert.equal(typeof verified.data.detailStatus, 'string')
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.PORTONE_API_SECRET = originalSecret
+  }
 })
 
 test('PortOne verification rejects a paid response with the wrong amount', async () => {

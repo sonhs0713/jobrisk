@@ -114,6 +114,8 @@ export async function markPaidReady({ analysisId, orderId, paymentId, amount, tr
   const db = await getDb()
   const paidAt = now()
   const paymentPatch = {
+    orderId,
+    analysisId,
     status: 'PAID',
     paymentId,
     transactionId,
@@ -142,13 +144,13 @@ export async function markPaidReady({ analysisId, orderId, paymentId, amount, tr
       analysisPatch.detail = detail || existing?.detail || null
       analysisPatch.detailEngine = detailEngine || existing?.detailEngine || 'stored_detail'
     }
-    await db.collection('payments').updateOne({ orderId }, { $set: paymentPatch })
+    await db.collection('payments').updateOne({ orderId }, { $set: paymentPatch }, { upsert: true })
     await db.collection('analyses').updateOne({ _id: new ObjectId(analysisId) }, { $set: analysisPatch })
     return { reportAccessToken, detailStatus: analysisPatch.detailStatus }
   }
 
   const order = memory.orders.get(orderId)
-  if (order) memory.orders.set(orderId, { ...order, ...paymentPatch, amount })
+  memory.orders.set(orderId, { ...(order || {}), ...paymentPatch, amount })
   const analysis = memory.analyses.get(analysisId)
   const reportAccessToken = analysis?.reportAccessToken || createReportAccessToken()
   const hasExistingDetail = Boolean(analysis?.detail || detail)
@@ -221,4 +223,8 @@ export function resetMemoryStoreForTest() {
   memory.analyses.clear()
   memory.orders.clear()
   memory.feedbacks.length = 0
+}
+
+export function deleteOrderForTest(orderId) {
+  memory.orders.delete(orderId)
 }

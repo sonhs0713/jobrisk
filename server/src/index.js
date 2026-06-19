@@ -220,19 +220,66 @@ app.post('/api/payments/verify', async (req, res) => {
       return
     }
 
+    const analysis = await getAnalysis(analysisId)
+    if (!analysis) {
+      res.status(404).json({ ok: false, message: '분석 결과를 찾을 수 없습니다.' })
+      return
+    }
+
     const order = await getOrder(orderId)
     if (!order) {
-      res.status(404).json({ ok: false, isPaid: false, message: '결제 주문을 찾을 수 없습니다.' })
+      const paymentVerifyStartedAt = Date.now()
+      const verified = await verifyPortOnePayment({ paymentId, orderId, expectedAmount: productAmount })
+      const paymentVerifyDurationMs = Date.now() - paymentVerifyStartedAt
+
+      const saveStartedAt = Date.now()
+      const paid = await markPaidReady({
+        analysisId,
+        orderId,
+        paymentId,
+        amount: productAmount,
+        transactionId: verified.transactionId,
+      })
+      const saveDurationMs = Date.now() - saveStartedAt
+      const totalDurationMs = Date.now() - requestStartedAt
+      const detailStatus = paid.detailStatus || getDetailStatus(analysis)
+
+      const recoveredPaymentLogPayload = {
+        analysisId,
+        orderId,
+        paymentId,
+        paymentVerifyDurationMs,
+        detailBuildDurationMs: 0,
+        saveDurationMs,
+        totalDurationMs,
+        reusedStoredDetail: Boolean(analysis.detail),
+        detailStatus,
+        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        recoveredMissingOrder: true,
+        ...buildOpenAiTimingFields({ openAiErrorStage: analysis.detailErrorStage || null }),
+      }
+      console.warn('[jobrisk][payments/verify] recovered missing order', recoveredPaymentLogPayload)
+      await appendTimingLog('payments/verify', recoveredPaymentLogPayload)
+
+      res.json({
+        ok: true,
+        isPaid: true,
+        analysisId,
+        paymentId,
+        reportAccessToken: paid.reportAccessToken,
+        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        detailStatus,
+      })
+
+      if (detailStatus === 'generating') {
+        setTimeout(() => {
+          void startDetailGeneration({ analysisId })
+        }, 0)
+      }
       return
     }
     if (order.analysisId !== analysisId) {
       res.status(400).json({ ok: false, isPaid: false, message: '주문과 분석 결과가 일치하지 않습니다.' })
-      return
-    }
-
-    const analysis = await getAnalysis(analysisId)
-    if (!analysis) {
-      res.status(404).json({ ok: false, message: '분석 결과를 찾을 수 없습니다.' })
       return
     }
 
