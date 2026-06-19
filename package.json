@@ -1,0 +1,26 @@
+{
+  "name": "jobrisk-v1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "web",
+    "server"
+  ],
+  "scripts": {
+    "dev": "node scripts/reset-local.js && node scripts/dev.js",
+    "dev:clean": "node scripts/reset-local.js",
+    "dev:api": "npm.cmd run dev -w server",
+    "build": "node scripts/reset-local.js --skip-ports && npm.cmd run build -w web",
+    "start": "npm.cmd run start -w web",
+    "start:api": "npm.cmd run start -w server",
+    "test": "npm.cmd run test -w server",
+    "golden:sync": "node scripts/convert-golden-set.mjs",
+    "golden:run": "node scripts/run-golden-set.mjs",
+    "golden": "node scripts/run-golden-set.mjs",
+    "visual:check": "node scripts/visual-check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
+  }
+}

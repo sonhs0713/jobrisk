@@ -1,0 +1,15 @@
+.env
+.env.local
+node_modules/
+.next/
+*.log
+*.err.log
+*.out.log
+artifacts/
+tmp/
+.tmp-playwright/
+.gstack/
+/flow-*.png
+/home-check.png
+/report-*.png
+/console.log(Boolean(process.env.OPENAI_API_KEY)))
