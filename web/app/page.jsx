@@ -293,7 +293,11 @@ export default function HomePage() {
                 <br />
                 먼저 확인하세요
               </h2>
-              <p className="tagline">한 줄 결론, 가장 강한 근거, 확인 질문까지 무료로 먼저 봅니다.</p>
+              <p className="tagline">
+                한 줄 결론, 가장 강한 근거,
+                <br />
+                확인 질문까지 무료로 먼저 봅니다.
+              </p>
 
               <div className="analysis-input-card">
                 <label className="field-label" htmlFor="job-posting">
