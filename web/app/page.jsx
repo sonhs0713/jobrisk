@@ -113,6 +113,11 @@ function arePreviewTextsNearDuplicate(a, b) {
   return overlap / Math.max(leftTokens.size, rightTokens.size) >= 0.8
 }
 
+function isValidEmail(value) {
+  const normalized = String(value || '').trim()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+}
+
 export default function HomePage() {
   const jobTextRef = useRef(null)
   const [jobText, setJobText] = useState('')
@@ -127,6 +132,14 @@ export default function HomePage() {
   const freePreview = rawFreePreview || null
   const previewTone = getPreviewTone(freePreview?.riskLevel, freePreview?.riskLevelLabel)
   const loadingStatus = loading ? '공고를 읽고 위험 신호를 정리하는 중입니다.' : ''
+  const normalizedEmail = email.trim()
+  const emailError =
+    !freePreview || !normalizedEmail
+      ? ''
+      : isValidEmail(normalizedEmail)
+        ? ''
+        : '올바른 이메일 주소를 입력해 주세요.'
+  const canStartPayment = Boolean(freePreview?.analysisId) && Boolean(normalizedEmail) && !emailError
 
   useEffect(() => {
     try {
@@ -385,9 +398,6 @@ export default function HomePage() {
                     ))}
                   </div>
 
-                  <a className="button-primary full" href={paymentHref}>
-                    {priceLabel}
-                  </a>
                   <div className="earlybird-note-card">
                     <strong>얼리버드 안내</strong>
                     <p>현재는 정식 출시 전 프리토타입입니다. 얼리버드 가격 3,000원으로 상세 리포트를 제공하며, 초기 구매자 피드백을 반영해 제품을 개선하고 있습니다.</p>
@@ -399,11 +409,28 @@ export default function HomePage() {
                     </label>
                     <input
                       id="customer-email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder="이메일을 입력하세요"
+                      aria-invalid={emailError ? 'true' : undefined}
                     />
+                    {emailError ? <p className="error-text">{emailError}</p> : null}
+                    {!normalizedEmail ? <p className="payment-email-note">이메일을 입력해야 결제를 진행할 수 있습니다.</p> : null}
                   </div>
+                  <a
+                    className="button-primary full"
+                    href={canStartPayment ? paymentHref : '#pricing'}
+                    aria-disabled={canStartPayment ? undefined : 'true'}
+                    onClick={(event) => {
+                      if (canStartPayment) return
+                      event.preventDefault()
+                    }}
+                  >
+                    {priceLabel}
+                  </a>
                 </div>
               ) : null}
             </aside>

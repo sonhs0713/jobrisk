@@ -6,7 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { buildDetailReport, buildPreview } from './lib/analysis.js'
-import { relayFeedbackToFormsfree } from './lib/feedbackRelay.js'
+import { relayFeedbackToFormsfree, relayPaymentNotificationToFormsfree } from './lib/feedbackRelay.js'
 import {
   createOrder,
   getAnalysis,
@@ -61,6 +61,30 @@ function getDetailStatus(analysis) {
   if (analysis?.detailStatus) return analysis.detailStatus
   if (analysis?.detail) return 'ready'
   return 'idle'
+}
+
+function isValidEmail(value) {
+  const normalized = String(value || '').trim()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+}
+
+async function notifyPaymentCompleted({ analysisId, orderId, paymentId, customerEmail, paidAt }) {
+  try {
+    await relayPaymentNotificationToFormsfree({
+      analysisId,
+      orderId,
+      paymentId,
+      customerEmail,
+      paidAt,
+    })
+  } catch (error) {
+    console.error('[jobrisk][payments/notify] failed', {
+      analysisId,
+      orderId,
+      paymentId,
+      message: error?.message || String(error),
+    })
+  }
 }
 
 async function startDetailGeneration({ analysisId }) {
@@ -179,8 +203,17 @@ app.post('/api/analyze/preview', async (req, res) => {
 app.post('/api/payments/prepare', async (req, res) => {
   try {
     const analysisId = String(req.body?.analysisId || '').trim()
+    const customerEmail = String(req.body?.customerEmail || '').trim()
     if (!analysisId) {
       res.status(400).json({ ok: false, message: 'analysisId가 필요합니다.' })
+      return
+    }
+    if (!customerEmail) {
+      res.status(400).json({ ok: false, message: '이메일 주소를 입력해 주세요.' })
+      return
+    }
+    if (!isValidEmail(customerEmail)) {
+      res.status(400).json({ ok: false, message: '올바른 이메일 주소를 입력해 주세요.' })
       return
     }
 
@@ -193,7 +226,7 @@ app.post('/api/payments/prepare', async (req, res) => {
     const order = await createOrder({
       analysisId,
       amount: productAmount,
-      customerEmail: String(req.body?.customerEmail || '').trim(),
+      customerEmail,
     })
 
     res.json({
@@ -260,6 +293,13 @@ app.post('/api/payments/verify', async (req, res) => {
       }
       console.warn('[jobrisk][payments/verify] recovered missing order', recoveredPaymentLogPayload)
       await appendTimingLog('payments/verify', recoveredPaymentLogPayload)
+      await notifyPaymentCompleted({
+        analysisId,
+        orderId,
+        paymentId,
+        customerEmail: '',
+        paidAt: new Date().toISOString(),
+      })
 
       res.json({
         ok: true,
@@ -343,6 +383,13 @@ app.post('/api/payments/verify', async (req, res) => {
     }
     console.info('[jobrisk][payments/verify]', paymentLogPayload)
     await appendTimingLog('payments/verify', paymentLogPayload)
+    await notifyPaymentCompleted({
+      analysisId,
+      orderId,
+      paymentId,
+      customerEmail: order.customerEmail || '',
+      paidAt: new Date().toISOString(),
+    })
 
     res.json({
       ok: true,

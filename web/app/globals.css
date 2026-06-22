@@ -2077,7 +2077,7 @@ input {
 
 .payment-email-note {
   margin: 0;
-  color: var(--ink-soft);
+  color: var(--danger-ink);
   font-size: 14px;
   line-height: 1.6;
 }

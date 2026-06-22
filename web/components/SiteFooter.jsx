@@ -7,7 +7,6 @@ export default function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-brand-block">
           <LogoMark tone="light" className="site-footer-logo" />
-          <p>입사 전에 후회할 가능성을 먼저 확인하는 채용공고 진단 도구입니다.</p>
         </div>
 
         <div className="site-footer-info">
@@ -15,7 +14,8 @@ export default function SiteFooter() {
             <p>사업자등록번호: 678-17-02416</p>
             <p>대표 문의: getmuno@gmail.com</p>
             <p>전화: 010-7239-0713</p>
-            <p>주소와 대표자 정보는 문의 시 안내합니다.</p>
+            <p>대표: 손현수</p>
+            <p>주소: 경기도 성남시 분당구 불정로 361</p>
           </div>
 
           <div className="site-footer-links" aria-label="정책 링크">

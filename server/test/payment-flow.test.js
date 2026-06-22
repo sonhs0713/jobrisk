@@ -99,13 +99,26 @@ test('payment prepare creates an order for an existing analysis', async () => {
   assert.ok(data.orderId)
 })
 
+test('payment prepare rejects a missing customer email', async () => {
+  const preview = await createPreview()
+
+  const { response, data } = await post('/api/payments/prepare', {
+    analysisId: preview.analysisId,
+    customerEmail: '',
+  })
+
+  assert.equal(response.status, 400)
+  assert.equal(data.ok, false)
+  assert.match(data.message, /이메일/)
+})
+
 test('detail is blocked before payment and with a wrong access token', async () => {
   const preview = await createPreview()
 
   const beforePayment = await get(`/api/analyze/${preview.analysisId}/detail?token=wrong`)
   assert.equal(beforePayment.response.status, 403)
 
-  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId })
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
   const verified = await post('/api/payments/verify', {
     paymentId: 'dev_paid_1',
     analysisId: preview.analysisId,
@@ -120,7 +133,7 @@ test('detail is blocked before payment and with a wrong access token', async () 
 
 test('payment verify uses the stored order amount and unlocks detail with token', async () => {
   const preview = await createPreview()
-  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId })
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
 
   const verified = await post('/api/payments/verify', {
     paymentId: 'dev_paid_2',
@@ -149,7 +162,7 @@ test('payment verify uses the stored order amount and unlocks detail with token'
 test('payment verify rejects analysis and order mismatch', async () => {
   const first = await createPreview()
   const second = await createPreview()
-  const prepared = await post('/api/payments/prepare', { analysisId: first.analysisId })
+  const prepared = await post('/api/payments/prepare', { analysisId: first.analysisId, customerEmail: 'buyer@example.com' })
 
   const verified = await post('/api/payments/verify', {
     paymentId: 'dev_paid_3',
@@ -163,7 +176,7 @@ test('payment verify rejects analysis and order mismatch', async () => {
 
 test('payment verify is idempotent after the order is already paid', async () => {
   const preview = await createPreview()
-  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId })
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
   const body = {
     paymentId: 'dev_paid_4',
     analysisId: preview.analysisId,
@@ -181,7 +194,7 @@ test('payment verify is idempotent after the order is already paid', async () =>
 
 test('payment verify recovers when local order is missing but PortOne confirms payment', async () => {
   const preview = await createPreview()
-  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId })
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
 
   deleteOrderForTest(prepared.data.orderId)
 
@@ -222,6 +235,43 @@ test('payment verify recovers when local order is missing but PortOne confirms p
   } finally {
     globalThis.fetch = originalFetch
     process.env.PORTONE_API_SECRET = originalSecret
+  }
+})
+
+test('payment verify relays a payment notification once after a successful payment', async () => {
+  const preview = await createPreview()
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
+
+  const originalFetch = globalThis.fetch
+  const originalEndpoint = process.env.FORMSFREE_PAYMENT_URL
+  const relays = []
+  process.env.FORMSFREE_PAYMENT_URL = 'https://example.com/formsfree-payment'
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    if (url === process.env.FORMSFREE_PAYMENT_URL) {
+      relays.push(String(init?.body || ''))
+      return new Response('ok', { status: 200 })
+    }
+    return originalFetch(input, init)
+  }
+
+  try {
+    const body = {
+      paymentId: 'dev_paid_notify_1',
+      analysisId: preview.analysisId,
+      orderId: prepared.data.orderId,
+    }
+    const first = await post('/api/payments/verify', body)
+    const second = await post('/api/payments/verify', body)
+
+    assert.equal(first.response.status, 200)
+    assert.equal(second.response.status, 200)
+    assert.equal(relays.length, 1)
+    assert.match(relays[0], /customerEmail=buyer%40example.com/)
+    assert.match(relays[0], /orderId=/)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.FORMSFREE_PAYMENT_URL = originalEndpoint
   }
 })
 
