@@ -25,12 +25,7 @@ async function getDb() {
       serverSelectionTimeoutMS: 2000,
       connectTimeoutMS: 2000,
     })
-    clientPromise = Promise.race([
-      client.connect(),
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('mongo_connect_timeout')), 1500)
-      }),
-    ]).catch(async (error) => {
+    clientPromise = client.connect().catch(async (error) => {
       clientPromise = null
       await client.close().catch(() => {})
       throw buildDbUnavailableError(error)
