@@ -139,7 +139,7 @@ export default function HomePage() {
       : isValidEmail(normalizedEmail)
         ? ''
         : '올바른 이메일 주소를 입력해 주세요.'
-  const canStartPayment = Boolean(freePreview?.analysisId) && Boolean(normalizedEmail) && !emailError
+  const canStartPayment = Boolean(preview?.analysisId) && Boolean(normalizedEmail) && !emailError
 
   useEffect(() => {
     try {
