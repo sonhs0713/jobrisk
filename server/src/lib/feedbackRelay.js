@@ -20,7 +20,7 @@ async function postToFormsfree(endpoint, payload) {
 }
 
 export async function relayFeedbackToFormsfree({ analysisId, rating, note }) {
-  const endpoint = String(process.env.FORMSFREE_FEEDBACK_URL || '').trim()
+  const endpoint = String(process.env.FORMSPREE_FEEDBACK_URL || '').trim()
   if (!endpoint) return { relayed: false, skipped: true }
 
   const payload = new URLSearchParams({
@@ -39,7 +39,7 @@ export async function relayFeedbackToFormsfree({ analysisId, rating, note }) {
 }
 
 export async function relayPaymentNotificationToFormsfree({ analysisId, orderId, paymentId, customerEmail, paidAt }) {
-  const endpoint = String(process.env.FORMSFREE_PAYMENT_URL || '').trim()
+  const endpoint = String(process.env.FORMSPREE_PAYMENT_URL || '').trim()
   if (!endpoint) return { relayed: false, skipped: true }
 
   const payload = new URLSearchParams({

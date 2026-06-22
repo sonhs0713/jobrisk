@@ -243,12 +243,12 @@ test('payment verify relays a payment notification once after a successful payme
   const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
 
   const originalFetch = globalThis.fetch
-  const originalEndpoint = process.env.FORMSFREE_PAYMENT_URL
+  const originalEndpoint = process.env.FORMSPREE_PAYMENT_URL
   const relays = []
-  process.env.FORMSFREE_PAYMENT_URL = 'https://example.com/formsfree-payment'
+  process.env.FORMSPREE_PAYMENT_URL = 'https://example.com/formspree-payment'
   globalThis.fetch = async (input, init) => {
     const url = String(input)
-    if (url === process.env.FORMSFREE_PAYMENT_URL) {
+    if (url === process.env.FORMSPREE_PAYMENT_URL) {
       relays.push(String(init?.body || ''))
       return new Response('ok', { status: 200 })
     }
@@ -271,7 +271,30 @@ test('payment verify relays a payment notification once after a successful payme
     assert.match(relays[0], /orderId=/)
   } finally {
     globalThis.fetch = originalFetch
-    process.env.FORMSFREE_PAYMENT_URL = originalEndpoint
+    process.env.FORMSPREE_PAYMENT_URL = originalEndpoint
+  }
+})
+
+test('payment verify returns a DB error instead of 404 when Mongo is configured but unavailable', async () => {
+  const originalMongoUri = process.env.MONGODB_URI
+  const originalMongoDb = process.env.MONGODB_DB
+  process.env.MONGODB_URI = 'mongodb://127.0.0.1:1/jobrisk-test'
+  process.env.MONGODB_DB = 'jobrisk-test'
+
+  try {
+    const { response, data } = await post('/api/payments/verify', {
+      paymentId: 'paid_db_error_1',
+      analysisId: '6a30ea760d644878bf78d851',
+      orderId: 'jobrisk_missing_order',
+    })
+
+    assert.equal(response.status, 503)
+    assert.equal(data.ok, false)
+    assert.match(data.message, /DB 연결 문제/)
+  } finally {
+    process.env.MONGODB_URI = originalMongoUri
+    process.env.MONGODB_DB = originalMongoDb
+    resetMemoryStoreForTest()
   }
 })
 

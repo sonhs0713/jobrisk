@@ -10,6 +10,13 @@ const memory = {
 
 let clientPromise
 
+function buildDbUnavailableError(cause) {
+  const error = new Error('db_unavailable')
+  error.code = 'DB_UNAVAILABLE'
+  error.cause = cause
+  return error
+}
+
 async function getDb() {
   const uri = process.env.MONGODB_URI
   if (!uri) return null
@@ -23,14 +30,13 @@ async function getDb() {
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error('mongo_connect_timeout')), 1500)
       }),
-    ]).catch(async () => {
+    ]).catch(async (error) => {
       clientPromise = null
       await client.close().catch(() => {})
-      return null
+      throw buildDbUnavailableError(error)
     })
   }
   const client = await clientPromise
-  if (!client) return null
   return client.db(process.env.MONGODB_DB || 'jobrisk')
 }
 
@@ -223,6 +229,7 @@ export function resetMemoryStoreForTest() {
   memory.analyses.clear()
   memory.orders.clear()
   memory.feedbacks.length = 0
+  clientPromise = null
 }
 
 export function deleteOrderForTest(orderId) {

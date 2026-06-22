@@ -63,6 +63,22 @@ function getDetailStatus(analysis) {
   return 'idle'
 }
 
+function isDbUnavailableError(error) {
+  return error?.code === 'DB_UNAVAILABLE' || error?.message === 'db_unavailable'
+}
+
+function getPublicErrorMessage(error, fallbackMessage) {
+  if (isDbUnavailableError(error)) {
+    return 'DB 연결 문제로 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+  }
+  return error?.message || fallbackMessage
+}
+
+function getStatusCodeForError(error, fallbackStatus = 500) {
+  if (isDbUnavailableError(error)) return 503
+  return fallbackStatus
+}
+
 function isValidEmail(value) {
   const normalized = String(value || '').trim()
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
@@ -196,7 +212,7 @@ app.post('/api/analyze/preview', async (req, res) => {
       price: { amount: productAmount, currency: 'KRW' },
     })
   } catch (error) {
-    res.status(500).json({ ok: false, message: error.message || '무료 분석 중 오류가 발생했습니다.' })
+    res.status(getStatusCodeForError(error, 500)).json({ ok: false, message: getPublicErrorMessage(error, '무료 분석 중 오류가 발생했습니다.') })
   }
 })
 
@@ -238,7 +254,7 @@ app.post('/api/payments/prepare', async (req, res) => {
       orderName: 'JOBRISK 물경력 가능성 상세 분석',
     })
   } catch (error) {
-    res.status(500).json({ ok: false, message: error.message || '결제 준비 중 오류가 발생했습니다.' })
+    res.status(getStatusCodeForError(error, 500)).json({ ok: false, message: getPublicErrorMessage(error, '결제 준비 중 오류가 발생했습니다.') })
   }
 })
 
@@ -407,7 +423,9 @@ app.post('/api/payments/verify', async (req, res) => {
       }, 0)
     }
   } catch (error) {
-    res.status(400).json({ ok: false, isPaid: false, message: error.message || '결제 검증에 실패했습니다.' })
+    res
+      .status(getStatusCodeForError(error, 400))
+      .json({ ok: false, isPaid: false, message: getPublicErrorMessage(error, '결제 검증에 실패했습니다.') })
   }
 })
 
