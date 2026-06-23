@@ -87,6 +87,19 @@ function trackFreeResultViewed({ analysisId = '', riskLevel = '', riskLevelLabel
   })
 }
 
+function trackFreeResultViewContent({ analysisId = '', riskLevel = '', riskLevelLabel = '' }) {
+  if (typeof window === 'undefined') return
+  if (typeof window.fbq !== 'function') return
+
+  window.fbq('track', 'ViewContent', {
+    content_name: 'jobrisk_free_result',
+    content_category: 'free_analysis_result',
+    content_ids: [String(analysisId || '')],
+    status: String(riskLevel || ''),
+    content_type: String(riskLevelLabel || ''),
+  })
+}
+
 function getPreviewTone(level = '', label = '') {
   const normalized = String(level).toLowerCase()
   const normalizedLabel = String(label)
@@ -218,6 +231,11 @@ export default function HomePage() {
     if (pendingTrackedAnalysisIdRef.current !== analysisId) return
 
     trackFreeResultViewed({
+      analysisId,
+      riskLevel: preview.freePreview.riskLevel,
+      riskLevelLabel: preview.freePreview.riskLevelLabel,
+    })
+    trackFreeResultViewContent({
       analysisId,
       riskLevel: preview.freePreview.riskLevel,
       riskLevelLabel: preview.freePreview.riskLevelLabel,
