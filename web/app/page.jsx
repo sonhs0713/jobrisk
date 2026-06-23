@@ -76,6 +76,17 @@ const premiumRows = [
   { title: '유료에서 더 보는 것', points: allowedTemplates.preview.paidItems },
 ]
 
+function trackFreeResultViewed({ analysisId = '', riskLevel = '', riskLevelLabel = '' }) {
+  if (typeof window === 'undefined') return
+  if (typeof window.fbq !== 'function') return
+
+  window.fbq('trackCustom', 'FreeResultViewed', {
+    analysis_id: String(analysisId || ''),
+    risk_level: String(riskLevel || ''),
+    risk_level_label: String(riskLevelLabel || ''),
+  })
+}
+
 function getPreviewTone(level = '', label = '') {
   const normalized = String(level).toLowerCase()
   const normalizedLabel = String(label)
@@ -120,6 +131,7 @@ function isValidEmail(value) {
 
 export default function HomePage() {
   const jobTextRef = useRef(null)
+  const pendingTrackedAnalysisIdRef = useRef(null)
   const [jobText, setJobText] = useState('')
   const [jobTextLength, setJobTextLength] = useState(0)
   const [email, setEmail] = useState('')
@@ -200,6 +212,19 @@ export default function HomePage() {
     window.localStorage.removeItem(PREVIEW_STORAGE_KEY)
   }, [preview])
 
+  useEffect(() => {
+    const analysisId = String(preview?.analysisId || '').trim()
+    if (!analysisId || !preview?.freePreview) return
+    if (pendingTrackedAnalysisIdRef.current !== analysisId) return
+
+    trackFreeResultViewed({
+      analysisId,
+      riskLevel: preview.freePreview.riskLevel,
+      riskLevelLabel: preview.freePreview.riskLevelLabel,
+    })
+    pendingTrackedAnalysisIdRef.current = null
+  }, [preview])
+
   async function handlePreview() {
     const currentJobText = jobTextRef.current?.value || jobText
     if (currentJobText !== jobText) {
@@ -219,8 +244,10 @@ export default function HomePage() {
         method: 'POST',
         body: JSON.stringify({ jobPostingText: currentJobText }),
       })
+      pendingTrackedAnalysisIdRef.current = String(data?.analysisId || '').trim() || null
       setPreview(data)
     } catch (err) {
+      pendingTrackedAnalysisIdRef.current = null
       setError(err.message)
     } finally {
       setLoading(false)
