@@ -467,7 +467,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="landing-section">
+        <section className="landing-section landing-section-proof">
           <div className="landing-shell proof-section">
             <div className="section-intro">
               <p className="eyebrow">제품 핵심 증명</p>
@@ -503,7 +503,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="landing-section landing-section-soft">
+        <section className="landing-section landing-section-compare">
           <div className="landing-shell analysis-workbench">
             <div className="analysis-copy">
               <p className="eyebrow">범용 AI와의 차이</p>
@@ -664,7 +664,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="landing-section" id="criteria">
+        <section className="landing-section landing-section-criteria" id="criteria">
           <div className="landing-shell criteria-section">
             <div className="section-intro">
               <p className="eyebrow">왜 이 결과를 믿을 수 있나요</p>

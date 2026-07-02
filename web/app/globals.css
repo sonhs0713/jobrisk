@@ -1836,12 +1836,25 @@ input {
 }
 
 .landing-section {
-  padding-top: 88px;
-  padding-bottom: 96px;
+  padding-top: 76px;
+  padding-bottom: 84px;
 }
 
 .landing-section-soft {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(248, 250, 255, 0.9) 100%);
+}
+
+.landing-section-problem {
+  background: linear-gradient(180deg, rgba(232, 240, 255, 0.78) 0%, rgba(243, 247, 255, 0.92) 100%);
+}
+
+.landing-section-proof,
+.landing-section-criteria {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.landing-section-compare {
+  background: linear-gradient(180deg, rgba(250, 252, 255, 0.96) 0%, rgba(238, 245, 255, 0.88) 100%);
 }
 
 .landing-section-final {
@@ -2045,6 +2058,11 @@ input {
 .proof-section {
   display: grid;
   gap: 22px;
+}
+
+.analysis-workbench,
+.criteria-section {
+  align-items: start;
 }
 
 .problem-quote-card,
