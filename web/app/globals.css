@@ -2065,11 +2065,12 @@ input {
 
 .problem-quote-card p {
   margin: 0;
-  padding: 16px 18px;
-  border-left: 3px solid var(--primary);
-  background: #f8fbff;
+  padding: 18px 20px;
+  border: 1px solid rgba(21, 112, 239, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%);
   color: var(--ink);
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 600;
   line-height: 1.5;
 }
