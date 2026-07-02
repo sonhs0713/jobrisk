@@ -2,6 +2,7 @@ import Link from 'next/link'
 import LogoMark from './LogoMark'
 
 const landingLinks = [
+  { href: '/#example', label: '결과 예시 보기' },
   { href: '/#analyze', label: '무료 진단' },
 ]
 
