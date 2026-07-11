@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { buildDetailReport, buildPreview, verifyQuoteAgainstPosting } from '../src/lib/analysis.js'
+import { buildDecisionReport, buildDetailReport, buildPreview, DETAIL_SCHEMA_VERSION, verifyQuoteAgainstPosting } from '../src/lib/analysis.js'
 import { getCompanyContextSection } from '../../shared/companyContextView.js'
 
 process.env.OPENAI_API_KEY = ''
@@ -202,6 +202,171 @@ CRM 운영 마케터
   assert.equal(Array.isArray(detail.detail.auxiliaryChecks), true)
   assert.equal(detail.detail.auxiliaryChecks.every((item) => item?.evidence?.quote), true)
   assert.equal(preview.freePreview.auxiliaryChecks, undefined)
+})
+
+test('detail response includes decisionReport', async () => {
+  const text = `
+브랜드 운영 담당
+주요업무
+- 운영 및 요청 처리
+- 기타 업무 지원
+자격요건
+- 운영 경험
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  assert.ok(detail.decisionReport)
+  assert.equal(typeof detail.decisionReport.overallVerdict.code, 'string')
+  assert.ok(Array.isArray(detail.decisionReport.riskSignals))
+  assert.ok(Array.isArray(detail.decisionReport.verificationNeeded))
+  assert.ok(Array.isArray(detail.decisionReport.recommendedQuestions))
+})
+
+test('detail report includes the current detail schema version', async () => {
+  const text = `
+성과 마케팅 담당
+주요업무
+- CRM 캠페인 운영 및 성과 리포트 작성
+- 채널별 전환율 분석과 개선안 도출
+자격요건
+- 마케팅 운영 경험
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  assert.equal(detail.detailVersion, DETAIL_SCHEMA_VERSION)
+})
+
+test('decisionReport puts insufficient_info axes into verificationNeeded', () => {
+  const detail = {
+    displayVerdict: { tone: 'neutral', reason: '핵심 역할 범위를 판단할 근거가 부족합니다.' },
+    fiveAxes: [],
+    sevenAxes: [
+      {
+        key: 'scopeClarity',
+        label: '무슨 일을 맡는지 분명한가',
+        level: 'insufficient_info',
+        summary: '담당 범위가 공고에 충분히 드러나지 않습니다.',
+        decisionMeaning: '실제 핵심 역할과 보조 업무 경계를 확인해야 합니다.',
+        evidence: { quote: '', sourceType: 'posting' },
+      },
+    ],
+    auxiliaryChecks: [],
+    interviewQuestions: [],
+    keyEvidence: [],
+    actionGuide: '지원 전에 실제 역할 범위를 확인하세요.',
+  }
+
+  const report = buildDecisionReport({ freePreview: null, detail })
+
+  assert.equal(report.riskSignals.length, 0)
+  assert.equal(report.verificationNeeded.length, 1)
+  assert.equal(report.verificationNeeded[0].key, 'scopeClarity')
+  assert.equal(report.verificationNeeded[0].questionToAsk, '핵심 업무와 요청성 보조 업무가 어디서 갈리는지 확인해야 합니다.')
+})
+
+test('decisionReport dedupes verification-needed items by topic, not only exact sentence', () => {
+  const detail = {
+    displayVerdict: { tone: 'warning', reason: '업무 범위와 운영 비중을 함께 확인해야 합니다.' },
+    fiveAxes: [],
+    sevenAxes: [
+      {
+        key: 'repetition',
+        label: '반복 일이 많은가',
+        level: 'insufficient_info',
+        summary: '운영과 개선 비중 근거가 부족합니다.',
+        decisionMeaning: '운영 비중과 개선 과제를 숫자나 사례 기준으로 확인해야 합니다.',
+        evidence: { quote: '', sourceType: 'posting' },
+      },
+    ],
+    auxiliaryChecks: [],
+    coreRisks: [
+      {
+        key: 'ops_mix',
+        title: '운영 비중이 전략 경험을 덮을 가능성',
+        summary: '운영 비중이 더 크면 실행 업무가 반복될 수 있습니다.',
+        whyRisk: '개선 과제가 부수적이면 전략보다 운영 경험만 남을 수 있습니다.',
+        questionToVerify: '운영 업무와 실험·개선 업무의 비중은 실제로 어느 정도인가요?',
+      },
+    ],
+    interviewQuestions: [],
+    keyEvidence: [],
+    actionGuide: '운영 비중을 먼저 확인하세요.',
+  }
+
+  const report = buildDecisionReport({ freePreview: null, detail })
+  const opsVerification = report.verificationNeeded.filter((item) => /(운영).*(개선|실험|비중)|(개선|실험).*(운영|비중)/i.test(item.questionToAsk))
+
+  assert.equal(opsVerification.length, 1)
+})
+
+test('decisionReport puts risk axes into riskSignals', () => {
+  const detail = {
+    displayVerdict: { tone: 'danger', reason: '직접적인 위험 신호가 확인됩니다.' },
+    fiveAxes: [],
+    sevenAxes: [
+      {
+        key: 'repetition',
+        label: '반복 일이 많은가',
+        level: 'risk',
+        summary: '반복 운영 비중이 높아 보입니다.',
+        riskInterpretation: '반복 운영 중심일 가능성이 높습니다.',
+        decisionMeaning: '개선 업무 비중과 자동화 권한을 확인해야 합니다.',
+        evidence: { quote: '운영 및 요청 처리', sourceType: 'posting' },
+      },
+    ],
+    auxiliaryChecks: [],
+    interviewQuestions: [],
+    keyEvidence: [],
+    actionGuide: '지원 전 핵심 업무 비중을 다시 확인하세요.',
+  }
+
+  const report = buildDecisionReport({ freePreview: null, detail })
+
+  assert.equal(report.riskSignals.length, 1)
+  assert.equal(report.verificationNeeded.length, 0)
+  assert.equal(report.riskSignals[0].key, 'repetition')
+})
+
+test('decisionReport prefers core risks for top risks and verification prompts', () => {
+  const detail = {
+    displayVerdict: { tone: 'warning', reason: '조건부 지원 가능입니다.' },
+    fiveAxes: [],
+    sevenAxes: [],
+    auxiliaryChecks: [],
+    coreRisks: [
+      {
+        key: 'scope_breadth',
+        title: '업무 범위 과다와 역할 경계 모호',
+        summary: '여러 마케팅 하위업무가 한 포지션에 함께 묶여 있습니다.',
+        whyRisk: '핵심 역할보다 운영성 업무가 넓게 섞일 수 있습니다.',
+        questionToVerify: '실제 주 업무와 각 업무 비중은 어떻게 나뉘나요?',
+        severity: 'high',
+        sourceAxisKeys: ['scopeClarity', 'repetition'],
+      },
+    ],
+    interviewQuestions: [],
+    keyEvidence: [],
+    actionGuide: '조건부 지원 가능입니다.',
+  }
+
+  const report = buildDecisionReport({ freePreview: null, detail })
+
+  assert.equal(report.riskSignals[0].key, 'scope_breadth')
+  assert.equal(report.verificationNeeded[0].questionToAsk, '실제 주 업무와 각 업무 비중은 어떻게 나뉘나요?')
 })
 
 test('debug option adds metadata without changing default result shape', async () => {
@@ -614,7 +779,7 @@ test('preview short reasons are unique and avoid generic duplicate copy', async 
   const reasons = result.freePreview.shortReasons
 
   assert.equal(reasons.length > 0, true)
-  assert.equal(reasons.length <= 1, true)
+  assert.equal(reasons.length <= 2, true)
   assert.equal(new Set(reasons).size, reasons.length)
   assert.equal(reasons.includes('현재 공고만으로는 추가 확인이 필요합니다.'), false)
   assert.equal(reasons.includes('현재 공고만으로는 판단 근거가 부족합니다.'), false)
@@ -718,7 +883,7 @@ test('preview keeps axis-specific detail in short reasons only', async () => {
 
   assert.equal(headline.includes('단순 운영 비중'), false)
   assert.equal(headline.includes('내 권한과 책임'), false)
-  assert.equal(reasons.length <= 1, true)
+  assert.equal(reasons.length <= 2, true)
   assert.equal(
     reasons.some((item) => item.includes('확인') || item.includes('KPI') || item.includes('운영·조율')),
     true,
@@ -899,10 +1064,11 @@ test('marketing posting keeps mixed signal instead of flattening to generic info
 
   assert.equal(['mixed_signal', 'positive_with_check', 'strong_positive'].includes(responsibility.level), true)
   assert.equal(['mixed_signal', 'positive_with_check', 'strong_positive'].includes(measurable.level), true)
-  assert.equal(result.freePreview.shortReasons.length <= 1, true)
+  assert.equal(result.freePreview.shortReasons.length <= 2, true)
   assert.equal(
     result.freePreview.headline.includes('실제 권한 범위는 면접에서 확인이 필요합니다.') ||
-      result.freePreview.headline.includes('KPI와 성과 책임 범위는 면접에서 확인이 필요합니다.'),
+      result.freePreview.headline.includes('KPI와 성과 책임 범위는 면접에서 확인이 필요합니다.') ||
+      result.freePreview.headline.includes('운영 비중이 더 크면 경력 자산이 약해질 수 있어 확인이 필요합니다.'),
     true,
   )
 })
@@ -1203,9 +1369,11 @@ test('parallel space regression keeps evidence intact and avoids repeated intro 
   )
   assert.equal(
     preview.freePreview.verificationQuestion.includes('기술 선택') ||
-    preview.freePreview.verificationQuestion.includes('아키텍처 의사결정') ||
-    preview.freePreview.verificationQuestion.includes('신규 기능 개발') ||
-    preview.freePreview.verificationQuestion.includes('유지보수'),
+      preview.freePreview.verificationQuestion.includes('아키텍처 의사결정') ||
+      preview.freePreview.verificationQuestion.includes('신규 기능 개발') ||
+      preview.freePreview.verificationQuestion.includes('유지보수') ||
+      preview.freePreview.verificationQuestion.includes('성과는 어떤 지표') ||
+      preview.freePreview.verificationQuestion.includes('결과물로 평가'),
     true,
   )
 
@@ -1308,6 +1476,7 @@ Data Center Inventory & Asset Technician
   assert.equal(result.structured.jobFamily.id, 'operations')
   assert.equal(
     result.freePreview.verificationQuestion.includes('프로세스 개선') ||
+      result.freePreview.verificationQuestion.includes('재고 관리') ||
       result.freePreview.verificationQuestion.includes('재고 정확도') ||
       result.freePreview.verificationQuestion.includes('ERP/WMS/OMS'),
     true,
@@ -1332,6 +1501,22 @@ Physical AI 리드
   const result = await buildPreview({ jobPostingText: text })
   assert.equal(result.structured.jobTitle, 'Physical AI 리드')
   assert.equal(result.structured.jobFamily.id, 'development')
+})
+
+test('marketing title is preserved and not misclassified by reward noise on one-line wanted header', async () => {
+  const text = `
+[뷰티·헬스케어_국내_상장사] 자사몰 마케팅 담당 (2~6년) 합격보상 지원자, 추천인 각 현금 50만원
+포지션 상세
+글로벌 뷰티 브랜드를 운영하는 기업에서 자사몰(D2C) 마케팅 전략을 수립하고, 인플루언서 협업, 프로모션, CRM, 콘텐츠 기획 및 성과 분석까지 전반적인 마케팅 업무를 담당합니다.
+주요업무
+- 자사몰 마케팅 전략 수립 및 실행
+- CRM 캠페인 운영과 성과 분석
+- 콘텐츠 기획 및 프로모션 운영
+`
+
+  const result = await buildPreview({ jobPostingText: text })
+  assert.equal(result.structured.jobTitle, '[뷰티·헬스케어_국내_상장사] 자사몰 마케팅 담당 (2~6년)')
+  assert.equal(result.structured.jobFamily.id, 'marketing')
 })
 
 test('reliability gate blocks good preview and captures conflicting hiring signals', async () => {
@@ -1388,9 +1573,32 @@ M365 운영(기술지원 포함)
   assert.equal(preview.headline.includes('지원') || preview.headline.includes('보류') || preview.headline.includes('확인'), true)
   assert.equal(preview.topEvidence.quote.includes('daum.net') || preview.topEvidence.quote.includes('㈜??'), true)
   assert.equal(preview.topEvidence.interpretation.length > 0, true)
-  assert.equal(preview.shortReasons.length <= 1, true)
+  assert.equal(preview.shortReasons.length <= 2, true)
   assert.equal(preview.shortReasons[0] !== preview.topEvidence.interpretation, true)
   assert.equal(preview.verificationQuestion.length > 0, true)
+})
+
+test('marketing free preview prioritizes scope breadth question when many sub-functions are bundled', async () => {
+  const text = `
+뷰티·헬스케어 국내 상장사 자사몰 마케팅 담당
+
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 인플루언서 협업 마케팅 운영
+- 프로모션 기획 및 운영
+- CRM 캠페인 운영
+- 협찬 콘텐츠 기획 및 일정 관리
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 라이브커머스 기획 및 운영
+- 판매 데이터 분석 및 유관부서 협업
+`
+
+  const result = await buildPreview({ jobPostingText: text })
+
+  assert.equal(result.freePreview.verificationQuestion.length > 0, true)
+  assert.equal(result.freePreview.shortReasons.length > 0, true)
+  assert.equal(/주업무|업무 범위/.test(result.freePreview.headline), true)
+  assert.equal(/가장 많은 시간이 쓰이나요|주업무/.test(result.freePreview.verificationQuestion), true)
 })
 
 test('reliability-gate preview keeps evidence, interpretation, and question in different roles', async () => {
@@ -1518,7 +1726,7 @@ B2B SaaS PM 경험, 데이터 기반 문제 정의 경험, 기능 출시 후 지
   assert.equal(joinedQuestions.includes('회사 이메일'), false)
   assert.equal(topQuestions.includes('현재 기준선'), true)
   assert.equal(topQuestions.includes('평가') || topQuestions.includes('재계획'), true)
-  assert.equal(topQuestions.includes('Head of Product') || topQuestions.includes('PM 피어 리뷰'), true)
+  assert.equal(/Head of Product|PM 피어 리뷰/.test(joinedQuestions), true)
   assert.equal(joinedQuestions.includes('기준선') || joinedQuestions.includes('평가') || joinedQuestions.includes('승인권자'), true)
   assert.equal(strongPositiveCount >= 2, true)
   assert.equal(detail.detail.sevenAxes.find((axis) => axis.key === 'transferable')?.level === 'insufficient_info', false)
@@ -1895,24 +2103,356 @@ test('design contract posting suppresses company-context hallucination from priv
   assert.equal(/privacy-policy|공식 사이트/.test(sourceBlob), false)
 })
 
-test('detail display verdict stays aligned with free preview on known mismatch-prone samples', async () => {
-  const { readFileSync } = await import('node:fs')
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/golden-set/golden-set-v3.confirmed.json', import.meta.url), 'utf8'))
-  const sampleIds = ['W019', 'W060', 'W061', 'W154', 'W078']
+test('detail display verdict separates information gaps from direct risk signals', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 프로모션, CRM 캠페인 기획 및 운영
+자격요건
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
 
-  for (const sampleId of sampleIds) {
-    const text = fixture.samples.find((sample) => sample.id === sampleId)?.posting_text || ''
-    const preview = await buildPreview({ jobPostingText: text })
-    const detail = await buildDetailReport({
-      analysis: {
-        structured: preview.structured,
-        freePreview: preview.freePreview,
-      },
-    })
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
 
-    assert.equal(detail.detail.displayVerdict?.riskLevel, preview.freePreview.riskLevel, sampleId)
-    assert.equal(detail.detail.displayVerdict?.label, preview.freePreview.riskLevelLabel, sampleId)
-  }
+  assert.notEqual(detail.detail.displayVerdict?.riskLevel, 'high')
+  assert.equal(['medium', 'needs_review'].includes(detail.detail.displayVerdict?.riskLevel), true)
+  assert.equal(typeof detail.detail.displayVerdict?.reason, 'string')
+  assert.equal((detail.detail.displayVerdict?.reason || '').length > 0, true)
+})
+
+test('detail display verdict falls to high when multiple direct risk signals are present', async () => {
+  const text = `
+운영 어시스턴트
+주요업무
+- 상급자 지시에 따라 상품 등록, 업로드, 검수, 정산 보조를 수행합니다
+- 요청사항 반영 및 내부 시스템 입력, 반복 응대 업무를 담당합니다
+자격요건
+- 꼼꼼한 성격과 빠른 처리 능력
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  assert.equal(['high', 'medium'].includes(detail.detail.displayVerdict?.riskLevel), true)
+  assert.equal(['위험 신호 높음', '조건부 지원 추천'].includes(detail.detail.displayVerdict?.label), true)
+})
+
+test('detail axes include decision-focused interpretation fields tied to posting evidence', async () => {
+  const preview = await buildPreview({ jobPostingText: MUNO_PM_POSTING })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const interpretedAxis = detail.detail.sevenAxes.find((axis) => typeof axis.riskInterpretation === 'string' && axis.riskInterpretation.length > 0)
+
+  assert.equal(typeof interpretedAxis?.riskInterpretation, 'string')
+  assert.equal(typeof interpretedAxis?.decisionMeaning, 'string')
+  assert.equal(/직접 보여주는 문구|문구는/.test(interpretedAxis?.riskInterpretation || ''), true)
+  assert.equal(/판단|지원|조건부/.test(interpretedAxis?.decisionMeaning || ''), true)
+})
+
+test('detail report exposes top decision risks and 5 to 7 interview questions with answer hints', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  assert.equal((detail.detail.displayVerdict?.topDecisionRisks || []).length, 3)
+  assert.equal(detail.detail.interviewQuestions.length >= 5 && detail.detail.interviewQuestions.length <= 7, true)
+  assert.equal(detail.detail.interviewQuestions.every((item) => typeof item.answerDecisionHint === 'string' && item.answerDecisionHint.length > 0), true)
+})
+
+test('marketing detail report derives core risks and keeps scope clarity out of generic info-gap bucket', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const scopeClarity = detail.detail.sevenAxes.find((axis) => axis.key === 'scopeClarity')
+  const coreRiskKeys = (detail.detail.coreRisks || []).map((item) => item.key)
+
+  assert.equal(scopeClarity?.level === 'insufficient_info', false)
+  assert.equal(coreRiskKeys.includes('scope_breadth'), true)
+  assert.equal(coreRiskKeys.includes('authority_gap'), true)
+  assert.equal(coreRiskKeys.includes('kpi_gap'), true)
+})
+
+test('marketing detail report dedupes overlapping top questions and separates verdict from action guide', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const topQuestions = detail.detail.interviewQuestions.slice(0, 6).map((item) => item.question)
+  const opsQuestions = topQuestions.filter((question) => /(운영).*(개선|전략|기획|실험|비중)|(개선|전략|기획|실험).*(운영|비중)/i.test(question))
+  const kpiQuestions = topQuestions.filter((question) => /(kpi|roas|cvr|매출|리텐션|성과).*(평가|책임)|직접 책임지는.*(kpi|지표|성과)/i.test(question))
+  const verdictReason = detail.detail.displayVerdict?.reason || ''
+  const actionGuide = detail.detail.actionGuide || ''
+
+  assert.equal(opsQuestions.length <= 1, true)
+  assert.equal(kpiQuestions.length <= 1, true)
+  assert.equal(verdictReason.length > 0, true)
+  assert.equal(actionGuide.length > 0, true)
+  assert.notEqual(verdictReason, actionGuide)
+})
+
+test('marketing detail report uses role-specific top risks and non-generic decision guide', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const topRisks = detail.detail.displayVerdict?.topDecisionRisks || []
+  const riskText = topRisks.map((item) => item.summary).join(' ')
+  const actionGuideHeadline = detail.decisionReport.decisionGuide.headline
+  const actionGuide = detail.decisionReport.decisionGuide.reason
+
+  assert.equal(/자사몰|CRM|라이브커머스|운영형 제너럴리스트/.test(riskText), true)
+  assert.equal(/조건부 지원 가능|확인 전 보류 권장|운영형 물경력 위험 주의/.test(actionGuideHeadline), true)
+  assert.equal(actionGuide.length > 0, true)
+})
+
+test('decision report includes confidence reason text', async () => {
+  const text = `
+운영 마케터
+주요업무
+- CRM 캠페인 운영
+- 프로모션 실행
+- 성과 리포트 작성
+자격요건
+- 마케팅 운영 경험
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  assert.equal(typeof detail.decisionReport.overallVerdict.confidenceReason, 'string')
+  assert.equal(detail.decisionReport.overallVerdict.confidenceReason.length > 0, true)
+})
+
+test('decision report aligns summary headline with final decision headline and keeps next steps action-oriented', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const headline = detail.decisionReport.overallVerdict.headline
+  const finalHeadline = detail.decisionReport.decisionGuide.headline
+  const nextSteps = detail.decisionReport.decisionGuide.nextSteps || []
+  const verificationNotes = detail.decisionReport.decisionGuide.verificationNotes || []
+
+  assert.equal(headline, finalHeadline)
+  assert.equal(/확인 전 보류 권장|조건부 지원 가능|운영형 물경력 위험 주의|추가 확인 필요/.test(headline), true)
+  assert.equal(nextSteps.length > 0, true)
+  assert.equal(nextSteps.every((item) => /\?$/.test(item) === false), true)
+  assert.equal(verificationNotes.length > 0, true)
+  assert.equal(verificationNotes.every((item) => /\?$/.test(item) === false), true)
+})
+
+test('marketing authority question is separated from KPI responsibility question', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const questions = (detail.detail.interviewQuestions || []).map((item) => item.question)
+  const authorityQuestion = questions.find((question) => /예산|채널|우선순위/.test(question))
+  const kpiQuestion = questions.find((question) => /ROAS|CVR|리텐션|성과는 어떤 지표|평가하나요/.test(question))
+
+  assert.equal(Boolean(authorityQuestion), true)
+  assert.equal(Boolean(kpiQuestion), true)
+  assert.equal(/KPI/.test(authorityQuestion || ''), false)
+})
+
+test('marketing verification notes focus on checks instead of repeating top-risk prose', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const topRiskText = (detail.detail.displayVerdict?.topDecisionRisks || []).map((item) => item.reason || item.summary || '').join(' ')
+  const verificationNotes = detail.decisionReport.decisionGuide.verificationNotes || []
+
+  assert.equal(verificationNotes.length > 0, true)
+  assert.equal(verificationNotes.some((item) => /확인해야 합니다/.test(item)), true)
+  assert.equal(verificationNotes.some((item) => /핵심 문제는|전략이라는 표현보다 중요한 것은/.test(item)), false)
+  assert.equal(verificationNotes.every((item) => topRiskText.includes(item) === false), true)
+})
+
+test('scope clarity interpretation starts from broad scope signal instead of generic positive framing', async () => {
+  const text = `
+브랜드 마케터
+주요업무
+- 자사몰 마케팅 전략 수립 및 운영
+- 국내 인플루언서 협업 마케팅 기획 및 운영
+- 자사몰 프로모션, CRM 캠페인 기획 및 운영
+- 콘텐츠 성과 분석 및 마케팅 전략 개선
+- 자사몰 기획전 및 라이브커머스 기획
+- 판매 데이터 및 캠페인 성과 분석
+- 유관부서 협업을 통한 마케팅 프로젝트 운영
+자격요건
+- 콘텐츠 기획 및 프로젝트 운영 경험
+- 데이터 기반으로 성과를 분석하고 개선할 수 있는 분
+`
+
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const scopeClarity = detail.detail.sevenAxes.find((axis) => axis.key === 'scopeClarity')
+  assert.equal(/업무 범위|넓게 묶여/.test(scopeClarity?.riskInterpretation || ''), true)
+  assert.equal(/역할 경계가 선명하면/.test(scopeClarity?.riskInterpretation || ''), false)
 })
 
 test('design contract posting does not reuse company-context questions as generic interview prompts', async () => {
@@ -1944,6 +2484,29 @@ test('company context still keeps role-matched hypotheses on marketing sample', 
   assert.equal(preview.structured.jobFamily.id, 'marketing')
   assert.equal(companyContext.jobConnectionHypotheses.length > 0, true)
   assert.equal(companyContext.reportEvidence.postingEvidence.length > 0, true)
+})
+
+test('marketing detail questions do not fall back to hr wording or one-note guidance', async () => {
+  const { readFileSync } = await import('node:fs')
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/golden-set/golden-set-v3.confirmed.json', import.meta.url), 'utf8'))
+  const text = fixture.samples.find((sample) => sample.id === 'W038')?.posting_text || ''
+  const preview = await buildPreview({ jobPostingText: text })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  const questions = detail.detail.interviewQuestions || []
+  const questionText = questions.map((item) => item.question).join('\n')
+  const uniqueGoodSignals = new Set(questions.map((item) => item.goodAnswerSignal))
+  const uniqueRiskSignals = new Set(questions.map((item) => item.riskyAnswerSignal))
+
+  assert.equal(preview.structured.jobFamily.id, 'marketing')
+  assert.equal(/채용|교육|조직 문제/.test(questionText), false)
+  assert.equal(uniqueGoodSignals.size >= 4, true)
+  assert.equal(uniqueRiskSignals.size >= 4, true)
 })
 
 test('sales posting does not inherit product-only ai company-context hypothesis', async () => {

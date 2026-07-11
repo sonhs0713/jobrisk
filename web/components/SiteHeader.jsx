@@ -2,13 +2,10 @@ import Link from 'next/link'
 import LogoMark from './LogoMark'
 
 const landingLinks = [
-  { href: '/#example', label: '결과 예시 보기' },
-  { href: '/#analyze', label: '무료 진단' },
+  { href: '/#analyze', label: '무료 공고 검토하기' },
 ]
 
-const reportLinks = [
-  { href: '/#analyze', label: '새 공고 분석하기' },
-]
+const reportLinks = [{ href: '/#analyze', label: '무료 공고 검토하기' }]
 
 export default function SiteHeader({ variant = 'landing' }) {
   const links = variant === 'report' ? reportLinks : landingLinks

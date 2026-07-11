@@ -23,11 +23,12 @@ function parseAmount(value) {
 }
 
 export async function verifyPortOnePayment({ paymentId, orderId, expectedAmount }) {
+  if (process.env.NODE_ENV !== 'production' && paymentId.startsWith('dev_')) {
+    return { transactionId: paymentId }
+  }
+
   const secret = process.env.PORTONE_API_SECRET
   if (!secret) {
-    if (process.env.NODE_ENV !== 'production' && paymentId.startsWith('dev_')) {
-      return { transactionId: paymentId }
-    }
     throw new Error('PORTONE_API_SECRET이 설정되지 않았습니다.')
   }
 

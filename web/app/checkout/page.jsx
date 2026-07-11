@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import SiteFooter from '../../components/SiteFooter'
-import SiteHeader from '../../components/SiteHeader'
-import { allowedTemplates } from '../../../shared/persuasionPolicy.js'
+import RebuildFlowShell from '../../components/RebuildFlowShell'
+import styles from '../../components/rebuild-flow-shell.module.css'
 import { apiFetch } from '../../lib/api'
 import { requestJobRiskPayment } from '../../lib/payments'
 
@@ -18,9 +17,8 @@ function buildPaymentCompleteUrl({ paymentId, analysisId, amount, orderId }) {
 
 export default function CheckoutPage() {
   const startedRef = useRef(false)
-  const [status, setStatus] = useState('결제를 준비하고 있습니다.')
+  const [status, setStatus] = useState('공고 근거를 바탕으로 상세 분석을 준비하고 있습니다.')
   const [error, setError] = useState('')
-  const isLoading = !error
 
   useEffect(() => {
     if (startedRef.current) return
@@ -33,7 +31,11 @@ export default function CheckoutPage() {
 
     async function start() {
       if (!analysisId) {
-        throw new Error('분석 결과 ID가 없어 결제를 시작할 수 없습니다.')
+        throw new Error('분석 결과가 없어 상세 리포트를 시작할 수 없습니다.')
+      }
+
+      if (!customerEmail) {
+        throw new Error('메인 페이지에서 이메일 주소를 먼저 입력해 주세요.')
       }
 
       const prepared = await apiFetch('/api/payments/prepare', {
@@ -42,7 +44,7 @@ export default function CheckoutPage() {
       })
 
       if (mode === 'dev') {
-        setStatus('분석 결과를 정리하고 있습니다.')
+        setStatus('면접 질문과 답변 해석 기준을 정리하고 있습니다.')
         const verified = await apiFetch('/api/payments/verify', {
           method: 'POST',
           body: JSON.stringify({
@@ -82,38 +84,42 @@ export default function CheckoutPage() {
     }
 
     start().catch((err) => {
-      setError(err.message || '결제 준비 중 문제가 발생했습니다.')
+      setError(err.message || '유료 분석 준비 중 문제가 발생했습니다.')
       setStatus('')
     })
   }, [])
 
   return (
-    <>
-      <SiteHeader variant="landing" />
-      <main className="report-page report-state-page">
-        <section className="report-state-card">
-          <p className="report-kicker">JobRisk 결제 준비</p>
-          <h1>{error ? '진행할 수 없습니다.' : allowedTemplates.checkout.title}</h1>
-          <p>{error || allowedTemplates.checkout.body}</p>
-          {!error ? (
-            <div className="report-state-loading" aria-live="polite">
-              <div className="report-state-spinner" aria-hidden="true" />
-              <div className="report-state-copy">
-                <strong>{status || '분석 결과를 정리하고 있습니다.'}</strong>
+    <RebuildFlowShell bodyClassName={styles.bodyNarrow}>
+      <section className={styles.stateCard}>
+        <span className={styles.stateEyebrow}>{error ? 'ENTRY CHECK' : 'PAID ANALYSIS'}</span>
+        <h1 className={styles.stateTitle}>{error ? '진행할 수 없습니다.' : '상세 분석을 준비하고 있습니다.'}</h1>
+        <p className={styles.stateBody}>
+          {error || '공고 근거를 바탕으로 면접 질문, 답변 해석 기준, 최종 판단 가이드를 정리하는 중입니다.'}
+        </p>
+
+        {!error ? (
+          <>
+            <div aria-live="polite" className={styles.loadingCard}>
+              <div aria-hidden="true" className={styles.spinner} />
+              <div className={styles.loadingCopy}>
+                <strong>{status || '상세 리포트를 준비하고 있습니다.'}</strong>
                 <p>보통 5~10초 정도 걸립니다.</p>
               </div>
             </div>
-          ) : null}
-          {!error ? (
-            <ul className="briefing-bullets report-state-bullets" aria-hidden={isLoading ? 'true' : undefined}>
-              {allowedTemplates.checkout.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
-      </main>
-      <SiteFooter />
-    </>
+
+            <div className={styles.note}>
+              <p>입력한 이메일을 기준으로 상세 리포트 접근 정보를 연결합니다. 잠시만 기다리시면 자동으로 다음 단계로 이동합니다.</p>
+            </div>
+          </>
+        ) : (
+          <div className={styles.actions}>
+            <a className={styles.primaryButton} href="/#free-analysis">
+              메인 페이지로 돌아가기
+            </a>
+          </div>
+        )}
+      </section>
+    </RebuildFlowShell>
   )
 }

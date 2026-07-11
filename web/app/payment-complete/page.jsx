@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 
-import SiteFooter from '../../components/SiteFooter'
-import SiteHeader from '../../components/SiteHeader'
+import RebuildFlowShell from '../../components/RebuildFlowShell'
+import styles from '../../components/rebuild-flow-shell.module.css'
 import { apiFetch } from '../../lib/api'
 
 function PaymentCompleteContent() {
@@ -16,7 +16,7 @@ function PaymentCompleteContent() {
   })
 
   const retryHref = useMemo(() => {
-    if (typeof window === 'undefined') return '/?source=payment-complete'
+    if (typeof window === 'undefined') return '/'
     return window.location.href
   }, [])
 
@@ -130,14 +130,14 @@ function PaymentCompleteContent() {
     const slowHintTimer = window.setTimeout(() => {
       if (!active) return
       setState((current) =>
-        ['verifying', 'generating'].includes(current.phase) && !current.error ? { ...current, showSlowHint: true } : current
+        ['verifying', 'generating'].includes(current.phase) && !current.error ? { ...current, showSlowHint: true } : current,
       )
     }, 7000)
 
     const retryTimer = window.setTimeout(() => {
       if (!active) return
       setState((current) =>
-        ['verifying', 'generating'].includes(current.phase) && !current.error ? { ...current, showRetry: true } : current
+        ['verifying', 'generating'].includes(current.phase) && !current.error ? { ...current, showRetry: true } : current,
       )
     }, 18000)
 
@@ -154,10 +154,9 @@ function PaymentCompleteContent() {
   const body = state.error
     ? state.error
     : state.phase === 'redirecting'
-      ? '결제는 확인되었습니다. 결과 페이지로 곧 이어집니다.'
-      : '결제는 확인되었습니다. 공고 기준의 상세 리포트를 정리하고 있습니다.'
-  const statusLabel =
-    state.phase === 'redirecting' ? '결과 페이지로 이동하고 있습니다.' : 'AI가 리포트를 정리하고 있습니다.'
+      ? '결제가 확인되었습니다. 결과 페이지로 곧 이어집니다.'
+      : '결제가 확인되었습니다. 공고 기준의 상세 리포트를 정리하고 있습니다.'
+  const statusLabel = state.phase === 'redirecting' ? '결과 페이지로 이동하고 있습니다.' : 'AI가 리포트를 정리하고 있습니다.'
   const statusHint =
     state.phase === 'redirecting'
       ? '잠시만 기다리시면 자동으로 결과로 이어집니다.'
@@ -166,62 +165,56 @@ function PaymentCompleteContent() {
         : '보통 30초에서 1분 정도 걸립니다. 창을 닫지 않으면 자동으로 결과로 이어집니다.'
 
   return (
-    <>
-      <SiteHeader variant="landing" />
-      <main className="report-page report-state-page">
-        <section className="report-state-card payment-complete-card">
-          <p className="report-kicker">JOBRISK 결제 확인</p>
-          <h1>{title}</h1>
-          <p className="payment-complete-body">{body}</p>
+    <RebuildFlowShell bodyClassName={styles.bodyNarrow}>
+      <section className={styles.stateCard}>
+        <span className={styles.stateEyebrow}>PAYMENT COMPLETE</span>
+        <h1 className={styles.stateTitle}>{title}</h1>
+        <p className={styles.stateBody}>{body}</p>
 
-          {!state.error ? (
-            <div className="report-state-loading" aria-live="polite">
-              <div className="report-state-spinner" aria-hidden="true" />
-              <div className="report-state-copy">
-                <strong>{statusLabel}</strong>
-                <p>{statusHint}</p>
-              </div>
+        {!state.error ? (
+          <div className={styles.loadingCard} aria-live="polite">
+            <div className={styles.spinner} aria-hidden="true" />
+            <div className={styles.loadingCopy}>
+              <strong>{statusLabel}</strong>
+              <p>{statusHint}</p>
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          {state.showRetry ? (
-            <div className="payment-complete-actions">
-              <a className="button-secondary" href={retryHref}>
-                다시 확인하기
-              </a>
-            </div>
-          ) : null}
-        </section>
-      </main>
-      <SiteFooter />
-    </>
+        {state.showRetry ? (
+          <div className={styles.actions}>
+            <a className={styles.secondaryButton} href={retryHref}>
+              다시 확인하기
+            </a>
+          </div>
+        ) : null}
+      </section>
+    </RebuildFlowShell>
+  )
+}
+
+function PaymentCompleteFallback() {
+  return (
+    <RebuildFlowShell bodyClassName={styles.bodyNarrow}>
+      <section className={styles.stateCard}>
+        <span className={styles.stateEyebrow}>PAYMENT COMPLETE</span>
+        <h1 className={styles.stateTitle}>상세 리포트를 생성하고 있습니다</h1>
+        <p className={styles.stateBody}>결제가 확인되었습니다. 공고 기준의 상세 리포트를 정리하고 있습니다.</p>
+        <div className={styles.loadingCard} aria-live="polite">
+          <div className={styles.spinner} aria-hidden="true" />
+          <div className={styles.loadingCopy}>
+            <strong>AI가 리포트를 정리하고 있습니다.</strong>
+            <p>보통 30초에서 1분 정도 걸립니다. 창을 닫지 않으면 자동으로 결과로 이어집니다.</p>
+          </div>
+        </div>
+      </section>
+    </RebuildFlowShell>
   )
 }
 
 export default function PaymentCompletePage() {
   return (
-    <Suspense
-      fallback={
-        <>
-          <SiteHeader variant="landing" />
-          <main className="report-page report-state-page">
-            <section className="report-state-card payment-complete-card">
-              <p className="report-kicker">JOBRISK 결제 확인</p>
-              <h1>상세 리포트를 생성하고 있습니다</h1>
-              <p className="payment-complete-body">결제는 확인되었습니다. 공고 기준의 상세 리포트를 정리하고 있습니다.</p>
-              <div className="report-state-loading" aria-live="polite">
-                <div className="report-state-spinner" aria-hidden="true" />
-                <div className="report-state-copy">
-                  <strong>AI가 리포트를 정리하고 있습니다.</strong>
-                  <p>보통 30초에서 1분 정도 걸립니다. 창을 닫지 않으면 자동으로 결과로 이어집니다.</p>
-                </div>
-              </div>
-            </section>
-          </main>
-          <SiteFooter />
-        </>
-      }
-    >
+    <Suspense fallback={<PaymentCompleteFallback />}>
       <PaymentCompleteContent />
     </Suspense>
   )

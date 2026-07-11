@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto'
 
 import { MongoClient, ObjectId } from 'mongodb'
 
+import { DETAIL_SCHEMA_VERSION } from './analysis.js'
+
 const memory = {
   analyses: new Map(),
   orders: new Map(),
@@ -43,6 +45,25 @@ function createReportAccessToken() {
   return randomBytes(32).toString('hex')
 }
 
+export function hasCurrentDetailBundle(analysis) {
+  return Boolean(
+    analysis?.detail &&
+      analysis?.decisionReport &&
+      analysis?.detailVersion &&
+      analysis.detailVersion === DETAIL_SCHEMA_VERSION,
+  )
+}
+
+function buildPersistedDetailBundle({ detail = null, decisionReport = null, detailEngine = null, detailVersion = null }) {
+  if (!detail) return null
+  return {
+    detail,
+    decisionReport: decisionReport || null,
+    detailEngine: detailEngine || 'stored_detail',
+    detailVersion: detailVersion || null,
+  }
+}
+
 export async function saveAnalysis(input) {
   const createdAt = now()
   const db = await getDb()
@@ -51,6 +72,7 @@ export async function saveAnalysis(input) {
     detailErrorStage: null,
     detailRequestedAt: null,
     detailCompletedAt: null,
+    detailVersion: null,
     ...input,
     createdAt,
     updatedAt: createdAt,
@@ -99,7 +121,17 @@ export async function getOrder(orderId) {
   return memory.orders.get(orderId) || null
 }
 
-export async function markPaid({ analysisId, orderId, paymentId, amount, detail, detailEngine, transactionId }) {
+export async function markPaid({
+  analysisId,
+  orderId,
+  paymentId,
+  amount,
+  detail,
+  decisionReport,
+  detailEngine,
+  detailVersion,
+  transactionId,
+}) {
   return markPaidReady({
     analysisId,
     orderId,
@@ -107,11 +139,23 @@ export async function markPaid({ analysisId, orderId, paymentId, amount, detail,
     amount,
     transactionId,
     detail,
+    decisionReport,
     detailEngine,
+    detailVersion,
   })
 }
 
-export async function markPaidReady({ analysisId, orderId, paymentId, amount, transactionId, detail = null, detailEngine = null }) {
+export async function markPaidReady({
+  analysisId,
+  orderId,
+  paymentId,
+  amount,
+  transactionId,
+  detail = null,
+  decisionReport = null,
+  detailEngine = null,
+  detailVersion = null,
+}) {
   const db = await getDb()
   const paidAt = now()
   const paymentPatch = {
@@ -127,62 +171,128 @@ export async function markPaidReady({ analysisId, orderId, paymentId, amount, tr
   if (db) {
     const existing = await db.collection('analyses').findOne(
       { _id: new ObjectId(analysisId) },
-      { projection: { reportAccessToken: 1, detail: 1, detailStatus: 1, detailEngine: 1, detailErrorStage: 1 } },
+      {
+        projection: {
+          reportAccessToken: 1,
+          detail: 1,
+          decisionReport: 1,
+          detailStatus: 1,
+          detailEngine: 1,
+          detailErrorStage: 1,
+          detailVersion: 1,
+          detailRequestedAt: 1,
+          detailCompletedAt: 1,
+        },
+      },
     )
     const reportAccessToken = existing?.reportAccessToken || createReportAccessToken()
-    const hasExistingDetail = Boolean(existing?.detail || detail)
+    const persistedDetailBundle = buildPersistedDetailBundle({
+      detail: detail || existing?.detail || null,
+      decisionReport: decisionReport || existing?.decisionReport || null,
+      detailEngine: detailEngine || existing?.detailEngine || null,
+      detailVersion: detailVersion || existing?.detailVersion || null,
+    })
+    const hasReusableDetailBundle = hasCurrentDetailBundle(persistedDetailBundle)
+    const hasStoredDetail = Boolean(persistedDetailBundle?.detail)
     const analysisPatch = {
       paid: true,
       reportAccessToken,
       paidAt,
       updatedAt: paidAt,
-      detailStatus: hasExistingDetail ? 'ready' : 'generating',
-      detailRequestedAt: hasExistingDetail ? existing?.detailRequestedAt || paidAt : paidAt,
-      detailCompletedAt: hasExistingDetail ? paidAt : null,
-      detailErrorStage: hasExistingDetail ? existing?.detailErrorStage || null : null,
+      detailStatus: hasReusableDetailBundle ? 'ready' : 'generating',
+      detailRequestedAt: hasReusableDetailBundle ? existing?.detailRequestedAt || paidAt : paidAt,
+      detailCompletedAt: hasStoredDetail ? existing?.detailCompletedAt || paidAt : null,
+      detailErrorStage: hasReusableDetailBundle ? existing?.detailErrorStage || null : null,
     }
-    if (hasExistingDetail) {
-      analysisPatch.detail = detail || existing?.detail || null
-      analysisPatch.detailEngine = detailEngine || existing?.detailEngine || 'stored_detail'
+    if (hasStoredDetail) {
+      analysisPatch.detail = persistedDetailBundle.detail
+      analysisPatch.decisionReport = persistedDetailBundle.decisionReport
+      analysisPatch.detailEngine = persistedDetailBundle.detailEngine
+      analysisPatch.detailVersion = persistedDetailBundle.detailVersion
     }
     await db.collection('payments').updateOne({ orderId }, { $set: paymentPatch }, { upsert: true })
     await db.collection('analyses').updateOne({ _id: new ObjectId(analysisId) }, { $set: analysisPatch })
-    return { reportAccessToken, detailStatus: analysisPatch.detailStatus }
+    return {
+      reportAccessToken,
+      detailStatus: analysisPatch.detailStatus,
+      detailStale: hasStoredDetail && !hasReusableDetailBundle,
+    }
   }
 
   const order = memory.orders.get(orderId)
   memory.orders.set(orderId, { ...(order || {}), ...paymentPatch, amount })
   const analysis = memory.analyses.get(analysisId)
   const reportAccessToken = analysis?.reportAccessToken || createReportAccessToken()
-  const hasExistingDetail = Boolean(analysis?.detail || detail)
+  const persistedDetailBundle = buildPersistedDetailBundle({
+    detail: detail || analysis?.detail || null,
+    decisionReport: decisionReport || analysis?.decisionReport || null,
+    detailEngine: detailEngine || analysis?.detailEngine || null,
+    detailVersion: detailVersion || analysis?.detailVersion || null,
+  })
+  const hasReusableDetailBundle = hasCurrentDetailBundle(persistedDetailBundle)
+  const hasStoredDetail = Boolean(persistedDetailBundle?.detail)
   const analysisPatch = {
     paid: true,
     reportAccessToken,
     paidAt,
     updatedAt: paidAt,
-    detailStatus: hasExistingDetail ? 'ready' : 'generating',
-    detailRequestedAt: hasExistingDetail ? analysis?.detailRequestedAt || paidAt : paidAt,
-    detailCompletedAt: hasExistingDetail ? paidAt : null,
-    detailErrorStage: hasExistingDetail ? analysis?.detailErrorStage || null : null,
+    detailStatus: hasReusableDetailBundle ? 'ready' : 'generating',
+    detailRequestedAt: hasReusableDetailBundle ? analysis?.detailRequestedAt || paidAt : paidAt,
+    detailCompletedAt: hasStoredDetail ? analysis?.detailCompletedAt || paidAt : null,
+    detailErrorStage: hasReusableDetailBundle ? analysis?.detailErrorStage || null : null,
   }
-  if (hasExistingDetail) {
-    analysisPatch.detail = detail || analysis?.detail || null
-    analysisPatch.detailEngine = detailEngine || analysis?.detailEngine || 'stored_detail'
+  if (hasStoredDetail) {
+    analysisPatch.detail = persistedDetailBundle.detail
+    analysisPatch.decisionReport = persistedDetailBundle.decisionReport
+    analysisPatch.detailEngine = persistedDetailBundle.detailEngine
+    analysisPatch.detailVersion = persistedDetailBundle.detailVersion
   }
   if (analysis) memory.analyses.set(analysisId, { ...analysis, ...analysisPatch })
-  return { reportAccessToken, detailStatus: analysisPatch.detailStatus }
+  return {
+    reportAccessToken,
+    detailStatus: analysisPatch.detailStatus,
+    detailStale: hasStoredDetail && !hasReusableDetailBundle,
+  }
 }
 
-export async function saveGeneratedDetail({ analysisId, detail, detailEngine, detailErrorStage = null }) {
+export async function saveGeneratedDetail({
+  analysisId,
+  detail,
+  decisionReport = null,
+  detailEngine,
+  detailVersion = DETAIL_SCHEMA_VERSION,
+  detailErrorStage = null,
+}) {
   const db = await getDb()
   const completedAt = now()
   const analysisPatch = {
     detail,
+    decisionReport,
     detailEngine,
+    detailVersion,
     detailStatus: 'ready',
     detailErrorStage,
     detailCompletedAt: completedAt,
     updatedAt: completedAt,
+  }
+
+  if (db) {
+    await db.collection('analyses').updateOne({ _id: new ObjectId(analysisId) }, { $set: analysisPatch })
+    return
+  }
+
+  const analysis = memory.analyses.get(analysisId)
+  if (analysis) memory.analyses.set(analysisId, { ...analysis, ...analysisPatch })
+}
+
+export async function markDetailGenerating({ analysisId }) {
+  const db = await getDb()
+  const requestedAt = now()
+  const analysisPatch = {
+    detailStatus: 'generating',
+    detailErrorStage: null,
+    detailRequestedAt: requestedAt,
+    updatedAt: requestedAt,
   }
 
   if (db) {

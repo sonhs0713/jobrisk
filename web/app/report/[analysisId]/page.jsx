@@ -1,525 +1,462 @@
-import SiteFooter from '../../../components/SiteFooter'
-import SiteHeader from '../../../components/SiteHeader'
-import ReportFeedback from './ReportFeedback'
-import { getCompanyContextSection } from '../../../../shared/companyContextView.js'
+﻿import RebuildFlowShell from '../../../components/RebuildFlowShell'
+import shellStyles from '../../../components/rebuild-flow-shell.module.css'
+import ReportFeedbackCard from './ReportFeedbackCard'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
 
-const axisDefinitions = {
-  repetition: '운영만 반복하는 역할인지, 기획·개선까지 맡는지 봅니다.',
-  responsibility: '결과 책임과 결정 권한이 실제로 있는지 봅니다.',
-  measurable: '나중에 성과를 숫자나 결과물로 설명할 수 있는지 봅니다.',
-  difficulty: '시간이 갈수록 더 어려운 문제를 맡게 되는지 봅니다.',
-  transferable: '다른 회사에서도 설명 가능한 결과물과 경험이 남는지 봅니다.',
-  scopeClarity: '업무 범위가 명확한지, 여러 직무가 섞여 전문성이 흐려지지 않는지 봅니다.',
-  learningFeedback: '업무 결과를 보고 배우고 개선하는 구조가 있는지 봅니다.',
-}
+const STATUS_LEGEND = [
+  { label: '안전', description: '경력 자산화 가능성이 높음', tone: 'safe' },
+  { label: '확인 필요', description: '면접에서 추가 확인 필요', tone: 'warning' },
+  { label: '정보 부족', description: '공고만으로는 판단이 어려움', tone: 'neutral' },
+  { label: '위험 신호', description: '물경력 가능성이 높음', tone: 'danger' },
+]
 
-const companyStageLabels = {
-  startup: '초기 단계',
-  growth: '성장 단계',
-  enterprise: '안정 단계',
-}
-
-const industryLabels = {
-  ai: 'AI',
-  ecommerce: '커머스',
-  saas: 'SaaS',
-  fintech: '핀테크',
-  healthcare: '헬스케어',
-  gaming: '게임',
+function AxisIcon({ axisKey }) {
+  switch (axisKey) {
+    case 'repetition':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M7 7h9a4 4 0 0 1 4 4" />
+          <path d="m17 4 3 3-3 3" />
+          <path d="M17 17H8a4 4 0 0 1-4-4" />
+          <path d="m7 20-3-3 3-3" />
+        </svg>
+      )
+    case 'responsibility':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <circle cx="12" cy="12" r="7" />
+          <circle cx="12" cy="12" r="2.5" />
+          <path d="M12 3v3" />
+          <path d="M12 18v3" />
+          <path d="M3 12h3" />
+          <path d="M18 12h3" />
+        </svg>
+      )
+    case 'measurable':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M5 19V9" />
+          <path d="M12 19V5" />
+          <path d="M19 19v-7" />
+          <path d="M4 19h16" />
+        </svg>
+      )
+    case 'difficulty':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="m4 18 5-7 4 4 5-9 2 3" />
+          <path d="m16 9 2-3 3 1" />
+        </svg>
+      )
+    case 'transferable':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M8 8h8v8" />
+          <path d="M16 8 8 16" />
+          <path d="M6 12v6h6" />
+        </svg>
+      )
+    case 'scopeClarity':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M8 4H5a1 1 0 0 0-1 1v3" />
+          <path d="M16 4h3a1 1 0 0 1 1 1v3" />
+          <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+          <path d="M4 16v3a1 1 0 0 0 1 1h3" />
+          <path d="M9 12h6" />
+          <path d="M12 9v6" />
+        </svg>
+      )
+    case 'learningFeedback':
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M12 5a6.5 6.5 0 1 0 6.2 8.5" />
+          <path d="M15 5h4v4" />
+          <path d="M19 5l-4 4" />
+        </svg>
+      )
+    default:
+      return (
+        <svg viewBox="0 0 24 24" role="presentation">
+          <circle cx="12" cy="12" r="7" />
+        </svg>
+      )
+  }
 }
 
 function getTone(level = '') {
   const normalized = String(level).toLowerCase()
-  if (normalized.includes('high') || normalized.includes('risk')) return 'danger'
-  if (
-    normalized.includes('mixed') ||
-    normalized.includes('medium') ||
-    normalized.includes('review') ||
-    normalized.includes('need') ||
-    normalized.includes('check') ||
-    normalized.includes('insufficient')
-  ) {
-    return 'warning'
-  }
-  if (normalized.includes('low') || normalized.includes('positive')) return 'safe'
-  return 'neutral'
+  if (normalized.includes('risk') || normalized.includes('high')) return 'danger'
+  if (normalized.includes('strong_positive') || normalized.includes('low')) return 'safe'
+  if (normalized.includes('insufficient')) return 'neutral'
+  return 'warning'
 }
 
-function getAxisStatus(level = '') {
-  if (level === 'risk') return '주의'
-  if (level === 'strong_positive') return '좋음'
-  if (level === 'mixed_signal' || level === 'positive_with_check') return '보통'
-  if (level === 'insufficient_info') return '정보부족'
-  if (level === 'high') return '위험'
-  if (level === 'medium') return '추가 확인'
-  if (level === 'low') return '좋음'
-  return '보통'
-}
-
-function getAuxiliaryStatus(level = '') {
-  if (level === 'high') return '위험'
-  if (level === 'medium') return '추가 확인'
-  if (level === 'low') return '좋음'
-  if (level === 'insufficient_info') return '정보부족'
+function getDisplayStatus(level = '') {
+  const tone = getTone(level)
+  if (tone === 'safe') return '안전'
+  if (tone === 'danger') return '위험 신호'
+  if (tone === 'neutral') return '정보 부족'
   return '확인 필요'
 }
 
-function getStatusLabel(level = '') {
-  if (['high', 'medium', 'low', 'insufficient_info'].includes(level)) return getAuxiliaryStatus(level)
-  return getAxisStatus(level)
+function getSummaryHeadline(tone = 'warning') {
+  if (tone === 'safe') return '지원 자산 가능성이 높습니다'
+  if (tone === 'danger') return '위험 신호가 강하게 보입니다'
+  if (tone === 'neutral') return '공고만으로는 판단 근거가 부족합니다'
+  return '추가 확인이 필요합니다'
 }
 
-function getUnifiedAxisStatus(level = '') {
-  if (level === 'risk' || level === 'high') return '위험'
-  if (level === 'strong_positive' || level === 'low') return '좋음'
-  if (level === 'insufficient_info') return '정보 부족'
-  return '확인 필요'
-}
-
-function getUnifiedAuxiliaryStatus(level = '') {
-  if (level === 'high') return '보류'
-  if (level === 'low') return '좋음'
-  if (level === 'insufficient_info') return '정보 부족'
-  return '확인 필요'
-}
-
-function getUnifiedStatusLabel(level = '') {
-  if (['high', 'medium', 'low', 'insufficient_info'].includes(level)) return getUnifiedAuxiliaryStatus(level)
-  return getUnifiedAxisStatus(level)
-}
-
-function getUnifiedDisplayVerdict(detail) {
-  const auxiliaryChecks = detail?.auxiliaryChecks || []
-  const axes = detail?.sevenAxes || detail?.fiveAxes || []
-  const applicationSafety = auxiliaryChecks.find((item) => item.key === 'applicationSafety')
-  const contractConsistency = auxiliaryChecks.find((item) => item.key === 'contractConsistency')
-  const employmentForm = auxiliaryChecks.find((item) => item.key === 'employmentForm')
-  const riskCount = axes.filter((axis) => axis.level === 'risk').length
-  const mixedCount = axes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis.level)).length
-  const strongPositiveCount = axes.filter((axis) => axis.level === 'strong_positive').length
-
-  if (applicationSafety?.level === 'high' || contractConsistency?.level === 'high' || employmentForm?.level === 'high') {
-    return {
-      label: '지원 전 보류',
-      description: '지원 전에 계약 주체, 공식 채널, 고용 형태와 실제 소속을 먼저 문서로 확인하는 편이 안전합니다.',
-      tone: 'danger',
-    }
-  }
-
-  if (riskCount >= 2) {
-    return {
-      label: '위험',
-      description: '반복 운영 비중이나 역할 구조에서 강한 위험 신호가 보여, 지원 전에 핵심 조건을 먼저 검증하는 편이 안전합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (riskCount >= 1 || mixedCount >= 1 || applicationSafety?.level === 'medium') {
-    return {
-      label: '추가 확인 필요',
-      description: '좋은 신호가 있어도 실제 권한, 성과 기준, 계약 조건은 면접에서 더 확인해야 합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (strongPositiveCount >= 2) {
-    return {
-      label: '좋음',
-      description: '공고 기준으로는 좋은 근거가 비교적 선명합니다. 다만 실제 평가 방식과 책임 범위는 면접에서 확인하는 편이 안전합니다.',
-      tone: 'safe',
-    }
-  }
-
-  return {
-    label: '추가 확인 필요',
-    description: '공고만으로는 단정할 근거가 부족해, 면접에서 역할과 성과 구조를 더 확인해야 합니다.',
-    tone: 'warning',
-  }
-}
-
-function getReportHeroTitle(tone = 'warning') {
-  if (tone === 'safe') return '물경력 위험이 낮아 보입니다'
-  if (tone === 'danger') return '물경력 위험 신호가 큽니다'
+function getFinalHeadline(tone = 'warning') {
+  if (tone === 'safe') return '지원 가능성이 높습니다'
+  if (tone === 'danger') return '지원 전 확인이 필요합니다'
+  if (tone === 'neutral') return '판단 전에 근거 보강이 필요합니다'
   return '지원 전 확인이 필요합니다'
 }
 
-const axisHeadlineMap = {
-  repetition: '단순 운영 비중을 먼저 확인해야 합니다',
-  responsibility: '이 역할이 실행 지원인지, 결과 책임까지 맡는지 먼저 확인해야 합니다',
-  measurable: '이 역할이 어떤 성과를 만들고 어떻게 평가받는지 먼저 확인해야 합니다',
-  difficulty: '더 어려운 일을 맡게 되는 구조인지 먼저 확인해야 합니다',
-  transferable: '이 경험이 다음 이직에서도 설명될 수 있는지 먼저 확인해야 합니다',
-  scopeClarity: '업무 범위와 핵심 역할이 선명한지 먼저 확인해야 합니다',
-  learningFeedback: '배우고 개선하는 구조가 있는지 먼저 확인해야 합니다',
+function getDecisionHeadline(actionGuideText = '', tone = 'warning') {
+  const text = String(actionGuideText || '').trim()
+  if (/^확인 전 보류 권장/.test(text)) return '확인 전 보류 권장'
+  if (/^조건부 지원 가능/.test(text)) return '조건부 지원 가능'
+  if (/^운영형 물경력 위험 주의/.test(text)) return '운영형 물경력 위험 주의'
+  return getFinalHeadline(tone)
 }
 
-const auxiliaryHeadlineMap = {
-  applicationSafety: '지원 경로와 회사 실체를 먼저 확인해야 합니다',
-  contractConsistency: '계약 구조를 먼저 확인해야 합니다',
-  employmentForm: '고용 형태를 먼저 확인해야 합니다',
-  workLocationClarity: '근무 위치와 소속 구조를 먼저 확인해야 합니다',
-  roleClarity: '실제 역할 범위를 먼저 확인해야 합니다',
-}
-
-function getReportHeroHeadline(verdict, priorityItems = []) {
-  const leadItem = priorityItems[0]
-  if (leadItem?.key && auxiliaryHeadlineMap[leadItem.key]) return auxiliaryHeadlineMap[leadItem.key]
-  if (leadItem?.key && axisHeadlineMap[leadItem.key]) return axisHeadlineMap[leadItem.key]
-  if (verdict?.tone === 'safe') return '좋은 신호가 보이지만 핵심 조건은 확인이 필요합니다'
-  if (verdict?.tone === 'danger') return '지원 전에 핵심 조건 검증이 필요합니다'
-  return '핵심 조건을 더 확인해야 합니다'
-}
-
-function getReportHeroBridge(verdict, priorityItems = []) {
-  const leadItem = priorityItems[0]
-  const leadReason = leadItem?.checklistReason || ''
-  const verdictDescription = verdict?.description || ''
-
-  if (leadReason && verdictDescription) {
-    return `${leadReason} ${verdictDescription}`
-  }
-
-  return leadReason || verdictDescription || '공고 기준으로는 핵심 조건이 충분히 드러나지 않아, 면접에서 역할과 성과 구조를 먼저 확인해야 합니다.'
-}
-
-function getActionGuideText(verdict, priorityItems = [], priorityQuestions = []) {
-  const leadItem = priorityItems[0]
-  const firstQuestion = priorityQuestions[0]
-
-  if (verdict?.tone === 'danger') {
-    return '계약 주체, 역할 범위, 평가 기준이 모호하면 바로 지원하지 말고 먼저 확인하세요.'
-  }
-
-  if (verdict?.tone === 'safe') {
-    return firstQuestion?.question
-      ? `긍정 신호가 보여도 "${firstQuestion.question}"부터 확인해 실제 권한과 성장 여지를 검증하세요.`
-      : '긍정 신호가 보여도 실제 권한과 평가 기준은 면접에서 한 번 더 확인하세요.'
-  }
-
-  if (leadItem?.label) {
-    return `${leadItem.label}부터 확인하고, 답이 모호하면 지원을 보류하는 쪽이 안전합니다.`
-  }
-
-  return '역할 범위와 평가 기준이 모호하면 지원을 서두르지 말고 면접에서 먼저 확인하세요.'
-}
-
-function getChecklistReason(axis) {
+function getAxisSummaryFallback(axis = {}) {
   const map = {
-    repetition: '운영성 업무 비중이 얼마나 큰지, 개선 기회가 함께 있는지 먼저 확인해야 합니다.',
-    responsibility: '실행만 맡는 역할인지, 결과와 방향까지 맡는 역할인지 먼저 확인해야 합니다.',
-    measurable: '성과가 숫자와 결과물로 남는 구조인지 물어봐야 합니다.',
-    difficulty: '입사 후 더 어려운 문제를 맡는 성장 구조인지 확인해야 합니다.',
-    transferable: '이 경험이 다음 커리어에도 설명 가능한 결과물로 남는지 확인해야 합니다.',
-    scopeClarity: '업무 범위가 넓어 보여도 핵심 역할과 책임 경계가 선명한지 확인해야 합니다.',
-    learningFeedback: '처리로 끝나는지, 회고와 개선으로 이어지는지 확인해야 합니다.',
+    repetition: '반복 업무 비중은 더 확인이 필요합니다.',
+    responsibility: '실제 결정권은 확인이 필요합니다.',
+    measurable: '성과 기준은 더 확인이 필요합니다.',
+    difficulty: '성장 난이도는 더 확인이 필요합니다.',
+    transferable: '이직에 남을 경험인지는 더 확인이 필요합니다.',
+    scopeClarity: '핵심 역할 경계가 모호합니다.',
+    learningFeedback: '배우고 개선하는 구조는 더 확인이 필요합니다.',
   }
 
-  return map[axis?.key] || '면접에서 역할, 책임, 권한, 성과 기준을 구체적으로 확인해야 합니다.'
+  return map[axis.key] || '핵심 기준은 더 확인이 필요합니다.'
 }
 
-function getVerdict(detail) {
-  const auxiliaryChecks = detail?.auxiliaryChecks || []
-  const axes = detail?.sevenAxes || detail?.fiveAxes || []
-  const applicationSafety = auxiliaryChecks.find((item) => item.key === 'applicationSafety')
-  const contractConsistency = auxiliaryChecks.find((item) => item.key === 'contractConsistency')
-  const riskCount = axes.filter((axis) => axis.level === 'risk').length
-  const mixedCount = axes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis.level)).length
-  const strongPositiveCount = axes.filter((axis) => axis.level === 'strong_positive').length
-
-  if (applicationSafety?.level === 'high') {
-    return {
-      label: '검증 전 지원 보류',
-      description: '경력서 제출 전 법인 실체, 계약 주체, 회사 이메일부터 확인하는 편이 안전합니다.',
-    }
-  }
-
-  if (contractConsistency?.level === 'high' || riskCount >= 2) {
-    return {
-      label: '주의',
-      description: '계약 구조 또는 업무 범위에서 강한 주의 신호가 보여 먼저 검증이 필요합니다.',
-    }
-  }
-
-  if (riskCount >= 1 || mixedCount >= 1 || applicationSafety?.level === 'medium') {
-    return {
-      label: '보통',
-      description: '긍정 신호와 확인 필요 신호가 섞여 있어, 지원 전 검증 질문이 중요합니다.',
-    }
-  }
-
-  if (strongPositiveCount >= 2) {
-    return {
-      label: '좋음',
-      description: '현재 공고 기준으로는 비교적 긍정 신호가 보이지만 실제 권한과 성과 기준은 확인이 필요합니다.',
-    }
-  }
-
-  return {
-    label: '정보부족',
-    description: '공고만으로는 판단 근거가 부족해, 지원 전에 핵심 정보를 먼저 확인해야 합니다.',
-  }
+function getMissingInfoDescription(axis = {}) {
+  return '근거 부족'
 }
 
-function formatConfidenceValue(item, labels) {
-  const value = item?.value
-  if (!value) return null
-  return labels?.[value] || value
-}
-
-function selectChecklistAxes(axes) {
-  const groups = ['risk', 'mixed_signal', 'positive_with_check', 'insufficient_info']
-  const selected = groups.flatMap((level) => axes.filter((axis) => axis.level === level))
-  if (selected.length > 0) return selected.slice(0, 3)
-
-  return axes.slice(0, 2)
-}
-
-function buildPriorityItems(axes, auxiliaryChecks) {
-  const safetyChecks = (auxiliaryChecks || []).filter((item) =>
-    ['applicationSafety', 'contractConsistency', 'workLocationClarity', 'roleClarity'].includes(item.key),
-  )
-  const axisChecks = selectChecklistAxes(axes || []).map((axis) => ({
-    ...axis,
-    checklistReason: getChecklistReason(axis),
-  }))
-
-  return [
-    ...safetyChecks.map((item) => ({
-      ...item,
-      checklistReason: item.summary,
-    })),
-    ...axisChecks,
-  ].slice(0, 4)
-}
-
-function getVerdictV2(detail) {
-  const auxiliaryChecks = detail?.auxiliaryChecks || []
-  const axes = detail?.sevenAxes || detail?.fiveAxes || []
-  const applicationSafety = auxiliaryChecks.find((item) => item.key === 'applicationSafety')
-  const contractConsistency = auxiliaryChecks.find((item) => item.key === 'contractConsistency')
-  const employmentForm = auxiliaryChecks.find((item) => item.key === 'employmentForm')
-  const riskCount = axes.filter((axis) => axis.level === 'risk').length
-  const mixedCount = axes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis.level)).length
-  const strongPositiveCount = axes.filter((axis) => axis.level === 'strong_positive').length
-
-  if (applicationSafety?.level === 'high') {
-    return {
-      label: '검증 전 제출 보류',
-      description: '경력서 제출 전에 회사 실체, 공식 제출처, 계약 주체를 먼저 확인해야 합니다.',
-      tone: 'danger',
-    }
-  }
-
-  if (contractConsistency?.level === 'high' || employmentForm?.level === 'high') {
-    return {
-      label: '신원·계약 검증 우선',
-      description: '계약 형태와 실제 소속이 엇갈릴 수 있어 지원 전에 계약 구조를 먼저 문서로 확인해야 합니다.',
-      tone: 'danger',
-    }
-  }
-
-  if (riskCount >= 2) {
-    return {
-      label: '경력서 제출 전 확인 필요',
-      description: '물경력 신호와 공고 불명확성이 함께 보여, 지원 전에 핵심 조건을 먼저 확인해야 합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (riskCount >= 1 || mixedCount >= 1 || applicationSafety?.level === 'medium') {
-    return {
-      label: '경력서 제출 전 확인 필요',
-      description: '좋아 보이는 표현이 있어도 실제 권한, 계약 조건, 성과 기준은 면접에서 확인해야 합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (strongPositiveCount >= 2) {
-    return {
-      label: '지원 전 핵심 확인 권장',
-      description: '현재 공고 기준으로는 비교적 긍정 신호가 있지만, 실제 권한과 성과 기준은 확인이 필요합니다.',
-      tone: 'safe',
-    }
-  }
-
-  return {
-    label: '추가 정보 확인 필요',
-    description: '공고만으로는 판단 근거가 부족해, 지원 전에 핵심 정보를 먼저 확인해야 합니다.',
-    tone: 'warning',
-  }
-}
-
-function getDisplayVerdict(detail) {
-  const auxiliaryChecks = detail?.auxiliaryChecks || []
-  const axes = detail?.sevenAxes || detail?.fiveAxes || []
-  const applicationSafety = auxiliaryChecks.find((item) => item.key === 'applicationSafety')
-  const contractConsistency = auxiliaryChecks.find((item) => item.key === 'contractConsistency')
-  const employmentForm = auxiliaryChecks.find((item) => item.key === 'employmentForm')
-  const riskCount = axes.filter((axis) => axis.level === 'risk').length
-  const mixedCount = axes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis.level)).length
-  const strongPositiveCount = axes.filter((axis) => axis.level === 'strong_positive').length
-
-  if (applicationSafety?.level === 'high') {
-    return {
-      label: '검증 전 제출 보류',
-      description: '경력서 제출 전에 회사 실체, 공식 제출 경로, 계약 주체를 먼저 확인해야 합니다.',
-      tone: 'danger',
-    }
-  }
-
-  if (contractConsistency?.level === 'high' || employmentForm?.level === 'high') {
-    return {
-      label: '신원·계약 검증 우선',
-      description: '계약 형태와 실제 소속 설명이 엇갈려 있어, 지원 전 계약 구조를 먼저 문서로 확인해야 합니다.',
-      tone: 'danger',
-    }
-  }
-
-  if (riskCount >= 2) {
-    return {
-      label: '경력서 제출 전 확인 필요',
-      description: '물경력 위험 신호와 공고 불명확성이 함께 보여, 지원 전 조건과 역할을 먼저 확인해야 합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (riskCount >= 1 || mixedCount >= 1 || applicationSafety?.level === 'medium') {
-    return {
-      label: '경력서 제출 전 확인 필요',
-      description: '좋은 신호가 있어도 실제 권한, 성과 기준, 계약 조건은 면접에서 더 확인하는 편이 안전합니다.',
-      tone: 'warning',
-    }
-  }
-
-  if (strongPositiveCount >= 3) {
-    return {
-      label: '낮은 물경력 위험',
-      description: '핵심 목표, 권한, 산출물, 협업 구조가 비교적 분명해 경력 자산으로 설명하기 좋은 공고에 가깝습니다.',
-      tone: 'safe',
-    }
-  }
-
-  if (strongPositiveCount >= 2) {
-    return {
-      label: '좋은 공고이나 세부 확인 필요',
-      description: '핵심 긍정 신호는 충분하지만 기준선, 평가 방식, 보상 세부 조건은 면접에서 더 확인하는 편이 안전합니다.',
-      tone: 'safe',
-    }
-  }
-
-  return getVerdictV2(detail)
-}
-
-function buildPriorityItemsV2(axes, auxiliaryChecks) {
-  const safetyOrder = ['applicationSafety', 'contractConsistency', 'employmentForm', 'workLocationClarity', 'roleClarity']
-  const safetyChecks = safetyOrder
-    .map((key) => (auxiliaryChecks || []).find((item) => item.key === key))
-    .filter(Boolean)
-  const axisChecks = selectChecklistAxes(axes || []).map((axis) => ({
-    ...axis,
-    checklistReason: getChecklistReason(axis),
-  }))
-
-  return [
-    ...safetyChecks.map((item) => ({
-      ...item,
-      checklistReason: item.summary,
-    })),
-    ...axisChecks,
-  ].slice(0, 5)
-}
-
-function getMissingInfoDescription(axis) {
+function getAxisCheckPoint(axis = {}) {
+  if (axis?.decisionMeaning) return axis.decisionMeaning
   const map = {
-    repetition: '운영 업무 중 반복 처리와 개선 업무 비중은 공고에서 분명하지 않습니다.',
-    responsibility: '결정 권한, 승인 범위, 보고 라인은 공고에서 분명하지 않습니다.',
-    measurable: '성과 기준, KPI, 산출물, 평가 방식은 공고에서 확인되지 않습니다.',
-    difficulty: '시간이 지나며 더 어려운 문제를 맡는 구조는 공고에서 확인되지 않습니다.',
-    transferable: '외부 이직 시장에서도 설명 가능한 결과물이 남는지는 공고에서 분명하지 않습니다.',
-    scopeClarity: '핵심 업무 범위와 잡무 비중 구분은 공고에서 충분히 드러나지 않습니다.',
-    learningFeedback: '회고, 성과 리뷰, 개선 프로세스는 공고에서 확인되지 않습니다.',
+    repetition: '운영 비중과 개선 비중',
+    responsibility: '실제 결정권 범위',
+    measurable: '성과 기준과 KPI',
+    difficulty: '더 큰 역할로 이어지는 구조',
+    transferable: '이직 때 설명할 성과 사례',
+    scopeClarity: '핵심 역할과 보조 업무 경계',
+    learningFeedback: '회고·피드백 구조',
   }
 
-  return map[axis?.key] || '이 항목은 공고에서 확인되지 않는 정보가 많아 추가 확인이 필요합니다.'
+  return map[axis.key] || '핵심 역할과 평가 기준'
+}
+
+function normalizeAxisSummary(axis = {}) {
+  if (axis?.riskInterpretation) return String(axis.riskInterpretation).trim()
+  const summary = String(axis.summary || '').trim()
+  const hasDirectEvidence = Boolean(axis.evidence?.quote)
+  if (!hasDirectEvidence && getTone(axis.level) === 'neutral') return getAxisSummaryFallback(axis)
+  if (!summary) return getAxisSummaryFallback(axis)
+  if (summary.includes(String(axis.label || '')) || summary.includes('공고에서 직접 근거를 찾기 어려워')) {
+    return getAxisSummaryFallback(axis)
+  }
+  return summary
 }
 
 function compareAxisPriority(a, b) {
   const levelPriority = {
     risk: 0,
+    high: 0,
     mixed_signal: 1,
     positive_with_check: 2,
+    medium: 2,
     insufficient_info: 3,
     strong_positive: 4,
+    low: 4,
   }
+
   const axisPriority = {
-    responsibility: 0,
-    repetition: 1,
-    measurable: 2,
-    transferable: 3,
-    difficulty: 4,
+    measurable: 0,
+    responsibility: 1,
+    repetition: 2,
+    difficulty: 3,
+    transferable: 4,
     scopeClarity: 5,
     learningFeedback: 6,
   }
+
   const levelDiff = (levelPriority[a?.level] ?? 99) - (levelPriority[b?.level] ?? 99)
   if (levelDiff !== 0) return levelDiff
+
   return (axisPriority[a?.key] ?? 99) - (axisPriority[b?.key] ?? 99)
 }
 
-function splitDeepDiveAxes(axes) {
-  const issueLevels = ['risk', 'mixed_signal', 'positive_with_check']
-  const issueAxes = axes.filter((axis) => issueLevels.includes(axis.level)).sort(compareAxisPriority)
-  const fillerAxes = axes.filter((axis) => !issueLevels.includes(axis.level) && axis.level !== 'strong_positive').sort(compareAxisPriority)
-  const primary = [...issueAxes, ...fillerAxes].slice(0, 3)
-  if (primary.length === 0) {
+function getUnifiedVerdict(detail = {}) {
+  const axes = detail?.sevenAxes || detail?.fiveAxes || []
+  const auxiliaryChecks = detail?.auxiliaryChecks || []
+  const riskCount = axes.filter((axis) => getTone(axis.level) === 'danger').length
+  const warningCount = axes.filter((axis) => getTone(axis.level) === 'warning').length
+  const safeCount = axes.filter((axis) => getTone(axis.level) === 'safe').length
+  const blockingAuxiliary = auxiliaryChecks.filter((item) => getTone(item.level) === 'danger').length
+
+  if (blockingAuxiliary > 0 || riskCount >= 2) {
     return {
-      primaryAxes: axes.slice(0, 1),
-      foldedAxes: axes.slice(1),
+      tone: 'danger',
+      summary: '계약 구조나 실제 역할 범위에서 강한 위험 신호가 있어 지원 전 검증이 필요합니다.',
+    }
+  }
+
+  if (riskCount >= 1 || warningCount >= 2) {
+    return {
+      tone: 'warning',
+      summary: '좋아 보이는 표현이 있어도 실제 권한과 성과 기준은 면접에서 더 확인해야 합니다.',
+    }
+  }
+
+  if (safeCount >= 3) {
+    return {
+      tone: 'safe',
+      summary: '긍정 신호가 비교적 분명하지만 실제 역할 범위와 성장 경로는 한 번 더 검증하는 편이 안전합니다.',
     }
   }
 
   return {
-    primaryAxes: primary,
-    foldedAxes: axes.filter((axis) => !primary.some((item) => item.key === axis.key)),
+    tone: 'neutral',
+    summary: '공고만으로는 판단 근거가 부족해 추가 정보 확인이 필요합니다.',
   }
 }
 
-function splitDisplayAxes(axes) {
-  const issueLevels = ['risk', 'mixed_signal', 'positive_with_check']
-  const issueAxes = axes.filter((axis) => issueLevels.includes(axis.level)).sort(compareAxisPriority)
-  if (issueAxes.length > 0) return splitDeepDiveAxes(axes)
+function getScoreFromAxes(axes = [], auxiliaryChecks = []) {
+  const score =
+    50 +
+    axes.filter((axis) => getTone(axis.level) === 'safe').length * 9 -
+    axes.filter((axis) => getTone(axis.level) === 'danger').length * 12 -
+    axes.filter((axis) => getTone(axis.level) === 'neutral').length * 4 -
+    auxiliaryChecks.filter((item) => getTone(item.level) === 'danger').length * 10 -
+    auxiliaryChecks.filter((item) => getTone(item.level) === 'warning').length * 5
 
-  const strongAxes = axes.filter((axis) => axis.level === 'strong_positive').sort(compareAxisPriority)
-  if (strongAxes.length > 0) {
-    const primary = [...strongAxes, ...axes.filter((axis) => axis.level !== 'strong_positive').sort(compareAxisPriority)].slice(0, 3)
-    return {
-      primaryAxes: primary,
-      foldedAxes: axes.filter((axis) => !primary.some((item) => item.key === axis.key)),
+  return Math.max(28, Math.min(91, score))
+}
+
+function toDisplayText(value, fallback = '') {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || fallback
+  }
+
+  if (typeof value === 'number') return String(value)
+
+  if (value && typeof value === 'object') {
+    if (typeof value.value === 'string') {
+      const trimmed = value.value.trim()
+      return trimmed || fallback
+    }
+    if (typeof value.label === 'string') {
+      const trimmed = value.label.trim()
+      return trimmed || fallback
     }
   }
 
-  return splitDeepDiveAxes(axes)
+  return fallback
 }
 
-function buildAxisDetails(axes, evidenceByQuote) {
-  return axes.map((axis) => ({
-    ...axis,
-    detailItem: axis.evidence?.quote ? evidenceByQuote.get(axis.evidence.quote) || null : null,
+function getAnalysisTarget(report = {}, detail = {}) {
+  const isInternalMetaValue = (value) => {
+    const text = String(value || '').trim()
+    if (!text) return true
+    if (/^(unknown|mixed|growth|marketing|product|design|operations|finance|hr|sales|service|media|education|public|development|executive)$/i.test(text)) {
+      return true
+    }
+    if (/^[a-z_]+$/i.test(text) && text === text.toLowerCase()) return true
+    return false
+  }
+
+  const primary =
+    toDisplayText(report?.jobTitle) ||
+    toDisplayText(detail?.jobTitle) ||
+    toDisplayText(report?.title) ||
+    toDisplayText(detail?.title) ||
+    toDisplayText(report?.role) ||
+    toDisplayText(detail?.role) ||
+    '채용 공고 분석'
+
+  const rawSecondary =
+    toDisplayText(report?.companyName) ||
+    toDisplayText(detail?.companyName) ||
+    toDisplayText(detail?.companyContext?.companyName) ||
+    toDisplayText(detail?.companyContext?.companyStage)
+
+  const secondary = isInternalMetaValue(rawSecondary) ? '입력한 채용공고 기준 분석' : rawSecondary
+
+  return {
+    primary,
+    secondary,
+  }
+}
+
+function formatReportDate(report = {}, detail = {}) {
+  const rawValue = report?.createdAt || report?.updatedAt || detail?.createdAt || detail?.updatedAt
+  if (!rawValue) return null
+
+  const date = new Date(rawValue)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+}
+
+function buildRiskSignalItems(axes = [], auxiliaryChecks = []) {
+  const axisSignals = axes
+    .filter((axis) => ['danger', 'warning', 'neutral'].includes(getTone(axis.level)))
+    .sort(compareAxisPriority)
+    .map((axis) => String(axis.summary || '').trim())
+    .filter(Boolean)
+
+  const auxiliarySignals = auxiliaryChecks
+    .filter((item) => ['danger', 'warning'].includes(getTone(item.level)))
+    .map((item) => String(item.summary || '').trim())
+    .filter(Boolean)
+
+  return [...new Set([...axisSignals, ...auxiliarySignals])].slice(0, 3)
+}
+
+function buildFinalActionChecks(items = []) {
+  const actionMap = {
+    measurable: '이 역할의 KPI와 평가 기준을 먼저 물어보세요.',
+    responsibility: '예산, 우선순위, 승인 범위 중 직접 결정하는 부분이 있는지 확인하세요.',
+    repetition: '반복 운영 업무와 개선 업무의 비중이 어떻게 나뉘는지 물어보세요.',
+    difficulty: '입사 후 더 어려운 문제나 더 큰 범위를 맡게 되는 시점이 있는지 확인하세요.',
+    transferable: '이 경험이 다음 이직에서도 설명 가능한 결과와 역량으로 남는지 물어보세요.',
+    scopeClarity: '핵심 업무와 부수 업무가 어디까지인지 구체적으로 구분해 달라고 요청하세요.',
+    learningFeedback: '입사 후 성과 리뷰와 피드백이 어떤 방식으로 이뤄지는지 확인하세요.',
+    applicationSafety: '지원 전에 공식 채용 채널과 실제 채용 주체가 일치하는지 확인하세요.',
+    contractConsistency: '계약 주체와 실제 근무 지시 라인이 누구인지 확인하세요.',
+    employmentForm: '고용 형태와 전환 조건이 있다면 기준을 확인하세요.',
+    workLocationClarity: '근무 위치와 소속 조직이 어떻게 정해지는지 확인하세요.',
+    roleClarity: '채용공고에 적힌 역할과 실제로 맡게 될 업무가 같은지 확인하세요.',
+  }
+
+  const dynamic = items
+    .slice(0, 4)
+    .map((item) => actionMap[item?.key] || item?.question || `${item?.label || '핵심 항목'}을 구체적으로 확인하세요.`)
+    .filter(Boolean)
+  const unique = [...new Set(dynamic)].slice(0, 4)
+
+  return unique.length ? unique : ['지원 전에 역할 범위와 성과 기준을 먼저 확인하세요.']
+}
+
+function derivePriorityItems(axes = [], auxiliaryChecks = []) {
+  const axisItems = [...axes].sort(compareAxisPriority).slice(0, 3)
+  const auxiliaryItems = auxiliaryChecks.filter((item) => ['danger', 'warning'].includes(getTone(item.level))).slice(0, 2)
+  return [...axisItems, ...auxiliaryItems]
+}
+
+function normalizeDecisionReportVerdict(decisionReport = null, detail = {}) {
+  if (!decisionReport?.overallVerdict) return detail?.displayVerdict || getUnifiedVerdict(detail)
+
+  const tone = decisionReport.overallVerdict.tone || 'neutral'
+  const label =
+    tone === 'safe' ? '지원 추천' : tone === 'danger' ? '위험 신호 높음' : tone === 'warning' ? '조건부 지원 추천' : '추가 확인 필요'
+
+  return {
+    riskLevel: decisionReport.overallVerdict.code || 'verification_needed',
+    label,
+    tone,
+    headline: decisionReport.overallVerdict.headline || '',
+    decisionLevel: decisionReport.overallVerdict.decisionLevel || '',
+    description: decisionReport.summary?.headline || decisionReport.overallVerdict.summary || '',
+    reason: decisionReport.decisionGuide?.reason || decisionReport.summary?.oneLineReason || decisionReport.overallVerdict.summary || '',
+    summary: decisionReport.overallVerdict.summary || '',
+    topDecisionRisks: (decisionReport.riskSignals || []).map((item) => ({
+      key: item?.key,
+      summary: item?.summary || '',
+      reason: item?.decisionMeaning || '',
+    })),
+  }
+}
+
+function buildDecisionReportSignalItems(decisionReport = null) {
+  if (!decisionReport) return []
+
+  const riskItems = (decisionReport.riskSignals || []).map((item) => String(item?.summary || '').trim()).filter(Boolean)
+  const verificationItems = (decisionReport.verificationNeeded || [])
+    .map((item) => String(item?.missingInfo || item?.questionToAsk || '').trim())
+    .filter(Boolean)
+
+  return [...new Set([...riskItems, ...verificationItems])].slice(0, 3)
+}
+
+function buildDecisionReportPriorityItems(decisionReport = null, axes = [], auxiliaryChecks = []) {
+  if (!decisionReport) return derivePriorityItems(axes, auxiliaryChecks)
+
+  const axisItems = [...(decisionReport.axes?.seven || decisionReport.axes?.five || [])].sort(compareAxisPriority).slice(0, 3)
+  const verificationItems = (decisionReport.verificationNeeded || []).slice(0, 2).map((item) => ({
+    key: item?.key,
+    label: item?.label,
+    question: item?.questionToAsk,
+  }))
+
+  return [...axisItems, ...verificationItems]
+}
+
+function buildDecisionReportAxes(decisionReport = null, fallbackAxes = []) {
+  if (!decisionReport) return fallbackAxes
+  const axes = decisionReport.axes?.seven || decisionReport.axes?.five || []
+  return Array.isArray(axes) && axes.length > 0 ? [...axes].sort(compareAxisPriority) : fallbackAxes
+}
+
+function normalizeVerificationPrompt(item = {}) {
+  const raw = String(item?.summaryNote || item?.whyItMatters || item?.missingInfo || item?.questionToAsk || '').trim()
+  if (!raw) return ''
+
+  return raw
+    .replace(/^이 축은 위험 확정이 아니라 판단 불확실성을 키우는 정보 공백입니다\.\s*/u, '')
+    .replace(/^정보가 부족하면 지원 판단을 보수적으로 해야 합니다\.\s*/u, '')
+    .trim()
+}
+
+function buildRiskSignalCards(verdict = null, decisionReport = null, detailedAxes = [], auxiliaryChecks = []) {
+  if (verdict?.topDecisionRisks?.length > 0) {
+    return verdict.topDecisionRisks
+      .map((item) => ({
+        key: item?.key || item?.summary,
+        summary: String(item?.summary || '').trim(),
+        reason: String(item?.reason || '').trim(),
+      }))
+      .filter((item) => item.summary)
+      .slice(0, 3)
+  }
+
+  if (decisionReport) {
+    return (decisionReport.riskSignals || [])
+      .map((item) => ({
+        key: item?.key || item?.summary,
+        summary: String(item?.summary || '').trim(),
+        reason: String(item?.decisionMeaning || '').trim(),
+      }))
+      .filter((item) => item.summary)
+      .slice(0, 3)
+  }
+
+  return buildRiskSignalItems(detailedAxes, auxiliaryChecks).slice(0, 3).map((item, index) => ({
+    key: `fallback-${index}`,
+    summary: String(item || '').trim(),
+    reason: '',
   }))
 }
 
-function summarizeMissingInfo(axes) {
-  const missingLabels = (axes || []).filter((axis) => axis.level === 'insufficient_info').map((axis) => axis.label)
-  if (!missingLabels.length) return ''
-  return `공고에서 확인되지 않는 정보: ${missingLabels.join(', ')}`
-}
-
 async function getReport(analysisId, token) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/analyze/${analysisId}/detail?token=${encodeURIComponent(token || '')}`,
-    { cache: 'no-store' },
-  )
+  const response = await fetch(`${API_BASE_URL}/api/analyze/${analysisId}/detail?token=${encodeURIComponent(token || '')}`, {
+    cache: 'no-store',
+  })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.message || '리포트를 불러오지 못했습니다.')
   return data
@@ -527,78 +464,141 @@ async function getReport(analysisId, token) {
 
 function ReportState({ title, message }) {
   return (
-    <>
-      <SiteHeader variant="report" />
-      <main className="report-page report-state-page">
+    <RebuildFlowShell bodyClassName={`${shellStyles.bodyWide} ${shellStyles.reportFrame}`}>
+      <div className="report-page report-state-page">
         <section className="report-state-card">
-          <p className="report-kicker">JobRisk 상세 리포트</p>
+          <p className="report-kicker">JOBRISK 상세 리포트</p>
           <h1>{title}</h1>
           <p>{message}</p>
         </section>
-      </main>
-      <SiteFooter />
-    </>
+      </div>
+    </RebuildFlowShell>
   )
 }
 
-function AxisInsightCard({ axis }) {
-  const tone = getTone(axis.level)
-  const missingInfoSummary = axis.evidence?.quote ? '' : summarizeMissingInfo([axis])
+function ReportSectionRail({ index, label, titleLines, bodyLines = [] }) {
+  return (
+    <div className="report-rebuild-rail">
+      <div className="report-rebuild-rail-index">
+        <span>{index}</span>
+        <strong>{label}</strong>
+      </div>
+      <div className="report-rebuild-rail-line" aria-hidden="true" />
+      <div className="report-rebuild-rail-copy">
+        {titleLines.length ? (
+          <h2>
+            {titleLines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </h2>
+        ) : null}
+        {bodyLines.length ? (
+          <p>
+            {bodyLines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function SummaryMetaCard({ label, primary, secondary }) {
+  if (!primary) return null
 
   return (
-    <article className="report-evidence-card report-axis-insight-card">
-      <div className="report-card-head report-card-head-inline">
-        <div className="report-card-title-block">
-          <h3>{axis.label}</h3>
-          <p className="report-axis-definition">{axisDefinitions[axis.key] || '이 기준이 실제 경력 자산으로 이어지는지 보는 항목입니다.'}</p>
+    <div className="report-rebuild-meta-card">
+      <strong>{label}</strong>
+      <div>
+        <span>{primary}</span>
+        {secondary ? <p>{secondary}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function AxisLegendGuide() {
+  return (
+    <div className="report-rebuild-axis-legend" aria-label="축 해석 기준">
+      <div className="report-rebuild-axis-legend-head">
+        <strong>축 해석 기준</strong>
+        <p>아래 7개 축의 상태를 이 기준으로 읽으면 됩니다.</p>
+      </div>
+
+      <div className="report-rebuild-axis-legend-list">
+        {STATUS_LEGEND.map((item) => (
+          <article className="report-rebuild-axis-legend-item" key={item.label}>
+            <span className={`report-rebuild-status tone-${item.tone}`}>{item.label}</span>
+            <p>{item.description}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function KeyAxisRow({ axis, index }) {
+  const checkPoint = getAxisCheckPoint(axis)
+  const hasDirectEvidence = Boolean(axis.evidence?.quote)
+  const evidenceText = axis.evidence?.quote || getMissingInfoDescription(axis)
+  const summaryText = normalizeAxisSummary(axis)
+
+  return (
+    <article className="report-rebuild-axis-row">
+      <div className="report-rebuild-axis-mark">
+        <div className="report-rebuild-axis-icon" aria-hidden="true">
+          <AxisIcon axisKey={axis.key} />
         </div>
-        <span className={`report-status-chip tone-${tone}`}>{getUnifiedAxisStatus(axis.level)}</span>
+        <div className="report-rebuild-axis-title">
+          <span>{String(index + 1).padStart(2, '0')}</span>
+          <h3>{axis.label}</h3>
+          <em className={`report-rebuild-status tone-${getTone(axis.level)}`}>{getDisplayStatus(axis.level)}</em>
+        </div>
       </div>
-      <div className="evidence-block">
-        <strong>판단 요약</strong>
-        <p>{axis.summary}</p>
+
+      <div className="report-rebuild-axis-column">
+        <strong>해석</strong>
+        <p>{summaryText}</p>
       </div>
-      <div className="evidence-block evidence-block-quote">
-        <strong>공고 원문 근거</strong>
-        {axis.evidence?.quote ? <blockquote>{axis.evidence.quote}</blockquote> : <p>{missingInfoSummary || '공고 원문에서 직접 확인할 근거가 부족합니다.'}</p>}
+
+      <div className="report-rebuild-axis-column">
+        <strong>공고 근거</strong>
+        <p>{evidenceText}</p>
       </div>
-      <div className="evidence-block">
-        <strong>왜 중요한가요</strong>
-        <p>{axis.detailItem?.whyImportant || getChecklistReason(axis)}</p>
+
+      <div className="report-rebuild-axis-column">
+        <strong>확인 포인트</strong>
+        <p>{checkPoint}</p>
+      </div>
+
+      <div className="report-rebuild-axis-arrow" aria-hidden="true">
+        →
       </div>
     </article>
   )
 }
 
-function AxisInsightCardV2({ axis }) {
-  const tone = getTone(axis.level)
-  const missingInfoSummary = axis.evidence?.quote ? '' : getMissingInfoDescription(axis)
-  const followUpReason = axis.detailItem?.whyImportant || getChecklistReason(axis)
-
+function InterviewQuestionCard({ item, index }) {
   return (
-    <article className="report-evidence-card report-axis-insight-card">
-      <div className="report-card-head report-card-head-inline">
-        <div className="report-card-title-block">
-          <h3>{axis.label}</h3>
-          <p className="report-axis-definition">{axisDefinitions[axis.key] || '이 기준이 실제 경력 자산으로 이어지는지 보는 항목입니다.'}</p>
-        </div>
-        <span className={`report-status-chip tone-${tone}`}>{getUnifiedAxisStatus(axis.level)}</span>
+    <article className="report-rebuild-question-card">
+      <span className="report-rebuild-card-index">{String(index + 1).padStart(2, '0')}</span>
+      <h3>{item.question}</h3>
+      <div className="report-rebuild-question-block">
+        <strong>이 질문이 중요한 이유</strong>
+        <p>{item.whyAsk || '이 질문을 통해 실제 역할 범위와 평가 기준을 검증할 수 있습니다.'}</p>
       </div>
-      <div className="evidence-block">
-        <strong>판단 요약</strong>
-        <p>{axis.summary}</p>
+      <div className="report-rebuild-question-block">
+        <strong>좋은 답변 힌트</strong>
+        <p>{item.goodAnswerSignal || '구체적인 기준, 우선순위, 평가 방식을 함께 제시하는 답변이 좋습니다.'}</p>
       </div>
-      <div className="evidence-block evidence-block-quote">
-        <strong>{axis.evidence?.quote ? '공고 원문 근거' : '공고에서 확인되지 않는 정보'}</strong>
-        {axis.evidence?.quote ? (
-          <blockquote>{axis.evidence.quote}</blockquote>
-        ) : (
-          <p>{missingInfoSummary || '공고에서 확인되지 않는 정보가 많아 추가 확인이 필요합니다.'}</p>
-        )}
+      <div className="report-rebuild-question-block">
+        <strong>위험 답변 신호</strong>
+        <p>{item.riskyAnswerSignal || '권한, 기준, 결과물을 끝까지 모호하게 설명하면 보수적으로 보는 편이 안전합니다.'}</p>
       </div>
-      <div className="evidence-block">
-        <strong>면접에서 확인할 점</strong>
-        <p>{followUpReason}</p>
+      <div className="report-rebuild-question-block">
+        <strong>답변에 따른 판단 기준</strong>
+        <p>{item.answerDecisionHint || '답변이 구체적이면 진행 판단이 쉬워지고, 모호하면 보수적으로 보는 편이 안전합니다.'}</p>
       </div>
     </article>
   )
@@ -619,314 +619,192 @@ export default async function ReportPage({ params, searchParams }) {
   }
 
   const detail = report?.detail || {}
+  const decisionReport = report?.decisionReport || null
   const axes = detail?.sevenAxes || detail?.fiveAxes || []
   const auxiliaryChecks = detail?.auxiliaryChecks || []
   const evidence = detail?.keyEvidence || []
-  const questions = detail?.interviewQuestions || []
-  const companyContext = detail?.companyContext || null
+  const questions = decisionReport?.recommendedQuestions || detail?.interviewQuestions || []
+  const verificationNeeded = decisionReport?.verificationNeeded || []
   const evidenceByQuote = new Map(evidence.filter((item) => item?.quote).map((item) => [item.quote, item]))
-  const priorityItems = buildPriorityItemsV2(axes, auxiliaryChecks)
-  const detailedAxes = buildAxisDetails(axes, evidenceByQuote)
-  const deepDiveAxes = [...detailedAxes].sort(compareAxisPriority)
-  const priorityQuestions = questions.slice(0, 3)
-  const additionalQuestions = questions.slice(3)
-  const verdict = detail?.displayVerdict || getUnifiedDisplayVerdict(detail)
-  const companySection = getCompanyContextSection(companyContext)
-  const heroTitle = getReportHeroHeadline(verdict, priorityItems)
-  const heroBridge = getReportHeroBridge(verdict, priorityItems)
-  const firstPriorityItem = priorityItems[0] || null
-  const firstPriorityQuestion = priorityQuestions[0] || null
-  const actionGuideText = getActionGuideText(verdict, priorityItems, priorityQuestions)
+  const decisionAxes = buildDecisionReportAxes(decisionReport, axes)
+  const detailedAxes = decisionAxes
+    .map((axis) => ({
+      ...axis,
+      detailItem: axis?.evidence?.quote ? evidenceByQuote.get(axis.evidence.quote) || null : null,
+    }))
+    .sort(compareAxisPriority)
+
+  const verdict = normalizeDecisionReportVerdict(decisionReport, detail)
+  const target = getAnalysisTarget(report, detail)
+  const analyzedAt = formatReportDate(report, detail)
+  const confidenceScore = decisionReport?.overallVerdict?.confidenceScore || getScoreFromAxes(axes, auxiliaryChecks)
+  const confidenceReason = decisionReport?.overallVerdict?.confidenceReason || '근거가 구체적일수록 점수의 신뢰도가 높습니다.'
+  const priorityQuestions = questions.slice(0, 6)
+  const additionalQuestions = questions.slice(6)
+  const topAxes = detailedAxes.slice(0, 7)
+  const riskSignalCards = buildRiskSignalCards(verdict, decisionReport, detailedAxes, auxiliaryChecks)
+  const priorityItems = buildDecisionReportPriorityItems(decisionReport, detailedAxes, auxiliaryChecks)
+  const actionGuideText = decisionReport?.decisionGuide?.reason || detail?.actionGuide || verdict.summary
+  const finalHeadline = decisionReport?.decisionGuide?.headline || verdict.headline || getDecisionHeadline(actionGuideText, verdict.tone)
+  const finalActionChecks =
+    (decisionReport?.decisionGuide?.nextSteps || []).slice(0, 3).length > 0
+      ? (decisionReport?.decisionGuide?.nextSteps || []).slice(0, 3)
+      : buildFinalActionChecks(priorityItems)
+  const verificationNotes =
+    (decisionReport?.decisionGuide?.verificationNotes || []).slice(0, 3).length > 0
+      ? (decisionReport?.decisionGuide?.verificationNotes || []).slice(0, 3)
+      : verificationNeeded.slice(0, 3).map((item) => normalizeVerificationPrompt(item)).filter(Boolean)
 
   return (
-    <>
-      <SiteHeader variant="report" />
-      <main className="report-page report-page-briefing">
-        <header className="report-hero report-hero-briefing">
-          <section className="report-hero-briefing-copy">
-            <span className={`report-verdict-label tone-${verdict.tone}`}>
-              {verdict.label}
-            </span>
-            <h1>{heroTitle}</h1>
-            <p className="report-lead report-hero-bridge">{heroBridge}</p>
-          </section>
-        </header>
+    <RebuildFlowShell bodyClassName={`${shellStyles.bodyWide} ${shellStyles.reportFrame}`}>
+      <div className="report-page report-rebuild-page">
+        <section className="report-rebuild-section" aria-labelledby="report-summary-heading">
+            <ReportSectionRail
+              index="01"
+              label="REPORT SUMMARY"
+              titleLines={['이 공고의 위험을 분석했습니다']}
+              bodyLines={[]}
+            />
 
-        <section className="report-section report-section-tight" aria-labelledby="summary-heading">
-          <div className="report-section-heading report-section-heading-compact">
-            <h2 id="summary-heading">한눈에 보는 요약</h2>
-          </div>
-          <div className="report-glance-grid">
-            <article className="report-glance-card">
-              <strong>최종 판단</strong>
-              <h3>{verdict.label}</h3>
-              <p>{verdict.description}</p>
-            </article>
-            <article className="report-glance-card">
-              <strong>가장 먼저 확인할 점</strong>
-              <h3>{firstPriorityItem?.label || '역할 범위와 평가 기준'}</h3>
-              <p>{firstPriorityItem?.checklistReason || heroBridge}</p>
-            </article>
-            <article className="report-glance-card">
-              <strong>먼저 물어볼 질문</strong>
-              <h3>{firstPriorityQuestion?.question || '이 역할의 실제 범위와 평가 기준은 무엇인가요?'}</h3>
-              <p>{firstPriorityQuestion?.whyAsk || firstPriorityItem?.checklistReason || '면접에서 실제 역할과 평가 기준을 먼저 확인하세요.'}</p>
-            </article>
-            <article className="report-glance-card report-glance-card-accent">
-              <strong>행동 가이드</strong>
-              <h3>답이 모호하면 보류</h3>
-              <p>{actionGuideText}</p>
-            </article>
+          <div className="report-rebuild-content">
+            <div className="report-rebuild-panel report-rebuild-summary-panel">
+              <div className="report-rebuild-summary-grid">
+                <article className="report-rebuild-card report-rebuild-card-large">
+                  <span className="report-rebuild-card-label">종합 판단</span>
+                  <h1 id="report-summary-heading">{verdict.headline || getSummaryHeadline(verdict.tone)}</h1>
+                  <p>{verdict.description || verdict.summary}</p>
+                  {verdict.reason ? <p>{verdict.reason}</p> : null}
+                </article>
+
+                <article className="report-rebuild-card report-rebuild-score-card">
+                  <span className="report-rebuild-card-label">신뢰도</span>
+                  <strong>
+                    {confidenceScore}
+                    <small>/100</small>
+                  </strong>
+                  <div className="report-rebuild-score-bar" aria-hidden="true">
+                    <span style={{ width: `${confidenceScore}%` }} />
+                  </div>
+                  <p>{confidenceReason}</p>
+                </article>
+
+                <article className="report-rebuild-card report-rebuild-signal-card">
+                  <span className="report-rebuild-card-label">Top 3 결정 리스크</span>
+                  <ol className="report-rebuild-signal-list">
+                    {riskSignalCards.map((signal, index) => (
+                      <li key={`${signal.key}-${index}`}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <p>{signal.summary}</p>
+                          {signal.reason ? <small>{signal.reason}</small> : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </article>
+              </div>
+
+              <div className="report-rebuild-meta-grid">
+                <SummaryMetaCard label="분석 대상" primary={target.primary} secondary={target.secondary} />
+                <SummaryMetaCard label="분석 일시" primary={analyzedAt} />
+              </div>
+            </div>
+
           </div>
         </section>
 
-        {false ? <section className="report-section report-section-tight" aria-labelledby="report-checklist-heading">
-          <div className="report-section-heading">
-            <h2 id="report-checklist-heading">지금 먼저 확인할 것</h2>
-          </div>
-          <div className="report-priority-stack">
-            {priorityItems.map((item) => {
-              const tone = getTone(item.level)
-              return (
-                <article className={`report-priority-row tone-${tone}`} key={item.key}>
-                  <div className="report-priority-content">
-                    <div className="report-priority-head">
-                      <h3>{item.label}</h3>
-                      <span className={`report-status-chip tone-${tone}`}>{getUnifiedStatusLabel(item.level)}</span>
-                    </div>
-                    <p>{item.checklistReason}</p>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        </section> : null}
+        <section className="report-rebuild-section" aria-labelledby="key-axes-heading">
+            <ReportSectionRail
+              index="02"
+              label="KEY AXES"
+              titleLines={['7개 핵심 축으로', '공고를 분석했습니다']}
+              bodyLines={[]}
+            />
 
-        <section className="report-section report-section-tight report-interview-section" aria-labelledby="questions-heading">
-          <div className="report-section-heading">
-            <h2 id="questions-heading">면접에서 먼저 물어볼 질문</h2>
+          <div className="report-rebuild-content">
+            <AxisLegendGuide />
+            <div className="report-rebuild-panel report-rebuild-axis-table">
+              {topAxes.map((axis, index) => (
+                <KeyAxisRow axis={axis} index={index} key={`${axis.key}-${index}`} />
+              ))}
+            </div>
           </div>
+        </section>
 
-          <div className="report-question-stack">
-            {priorityQuestions.map((item, index) => {
-              const relatedAxis = priorityItems[index] || priorityItems[0] || axes[index]
-              return (
-                <article className="report-question-row" key={`${item.question}-${index}`}>
-                  <span className="report-question-number">Q{index + 1}</span>
-                  <div className="report-question-body">
-                    <h3>{item.question}</h3>
-                    <p className="report-question-why">{item.whyAsk || relatedAxis?.checklistReason || getChecklistReason(relatedAxis)}</p>
-                    <div className="report-question-signals">
-                      <p>
-                        <strong>좋은 답변</strong>
-                        {item.goodAnswerSignal}
-                      </p>
-                      <p>
-                        <strong>주의할 답변</strong>
-                        {item.riskyAnswerSignal}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+        <section className="report-rebuild-section" aria-labelledby="interview-guide-heading">
+          <ReportSectionRail index="03" label="INTERVIEW GUIDE" titleLines={['면접에서 반드시', '확인할 핵심 질문']} bodyLines={[]} />
 
-          {additionalQuestions.length ? (
-            <div className="report-extra-questions">
-              <h3>추가로 확인할 질문</h3>
-              <div className="report-question-stack report-question-stack-compact">
-                {additionalQuestions.map((item, index) => (
-                  <article className="report-question-row report-question-row-compact" key={`${item.question}-extra-${index}`}>
-                    <span className="report-question-number">Q{priorityQuestions.length + index + 1}</span>
-                    <div className="report-question-body">
-                      <h3>{item.question}</h3>
-                      <p className="report-question-why">{item.whyAsk || '이 질문은 실제 역할 범위와 평가 기준을 더 구체적으로 확인하기 위한 질문입니다.'}</p>
-                      <div className="report-question-signals report-question-signals-compact">
-                        <p>
-                          <strong>좋은 답변</strong>
-                          {item.goodAnswerSignal || '업무 범위, 책임 기준, 협업 구조를 구체적으로 설명합니다.'}
-                        </p>
-                        <p>
-                          <strong>주의할 답변</strong>
-                          {item.riskyAnswerSignal || '역할 기준이 모호하거나 상황에 따라 달라진다는 표현이 반복됩니다.'}
-                        </p>
-                      </div>
-                    </div>
-                  </article>
+          <div className="report-rebuild-content">
+            <div className="report-rebuild-panel">
+              <div className="report-rebuild-question-grid">
+                {priorityQuestions.map((item, index) => (
+                  <InterviewQuestionCard item={item} index={index} key={`${item.question}-${index}`} />
                 ))}
               </div>
+                {additionalQuestions.length ? (
+                  <button className="report-rebuild-secondary-button" type="button">
+                    전체 질문 리스트 보기
+                  </button>
+                ) : null}
             </div>
-          ) : null}
+          </div>
         </section>
 
-        <section className="report-section report-section-tight" aria-labelledby="deep-dive-heading">
-          <div className="report-section-heading">
-            <h2 id="deep-dive-heading">왜 이렇게 판단하나요</h2>
-          </div>
+        <section className="report-rebuild-section" aria-labelledby="final-action-heading">
+            <ReportSectionRail
+              index="04"
+              label="FINAL ACTION"
+              titleLines={['최종 판단과', '다음 단계 제안']}
+              bodyLines={[]}
+            />
 
-          <div className="report-axis-overview-list" aria-label="7가지 기준 요약">
-            {deepDiveAxes.map((axis, index) => {
-              const tone = getTone(axis.level)
-              return (
-                <details className={`report-axis-accordion tone-${tone}`} key={`${axis.key}-detail-${index}`}>
-                  <summary className="report-axis-overview-row report-axis-overview-row-clickable">
-                    <div className="report-axis-overview-copy">
-                      <strong>{axis.label}</strong>
-                      <p>{axis.summary}</p>
-                    </div>
-                    <div className="report-axis-overview-meta">
-                      <span className={`report-status-chip tone-${tone}`}>{getUnifiedAxisStatus(axis.level)}</span>
-                      <span className="report-axis-overview-chevron" aria-hidden="true">+</span>
-                    </div>
-                  </summary>
-                  <div className="report-axis-accordion-panel">
-                    <AxisInsightCardV2 axis={axis} />
-                  </div>
-                </details>
-              )
-            })}
-          </div>
+          <div className="report-rebuild-content">
+            <div className="report-rebuild-final-stack">
+              <div className="report-rebuild-panel report-rebuild-final-grid">
+              <article className="report-rebuild-final-card">
+                <span className="report-rebuild-card-label">최종 권고</span>
+                <h2 id="final-action-heading">{finalHeadline}</h2>
+                <p>{actionGuideText}</p>
+              </article>
 
-          {false ? <div className="report-axis-overview-list" aria-label="7가지 기준 요약">
-            {deepDiveAxes.map((axis, index) => {
-              const tone = getTone(axis.level)
-              return (
-                <article className={`report-axis-overview-row tone-${tone}`} key={`${axis.key}-overview-${index}`}>
-                  <div className="report-axis-overview-copy">
-                    <strong>{axis.label}</strong>
-                    <p>{axis.summary}</p>
-                  </div>
-                  <span className={`report-status-chip tone-${tone}`}>{getUnifiedAxisStatus(axis.level)}</span>
+              <article className="report-rebuild-next-card">
+                <span className="report-rebuild-card-label">다음 단계 제안</span>
+                <ul>
+                  {finalActionChecks.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+              {verificationNotes.length ? (
+                <article className="report-rebuild-next-card">
+                  <span className="report-rebuild-card-label">추가 확인 필요</span>
+                  <ul>
+                    {verificationNotes.map((item, index) => (
+                      <li key={`${item}-${index}`}>{item}</li>
+                    ))}
+                  </ul>
                 </article>
-              )
-            })}
-          </div> : null}
-
-          {false ? deepDiveAxes.length ? (
-            <details className="report-criteria-details report-criteria-details-nested">
-              <summary className="report-criteria-summary">
-                <span>기준별 상세 설명 보기</span>
-              </summary>
-              <div className="report-axis-stack report-axis-stack-briefing report-axis-stack-cards">
-                {deepDiveAxes.map((axis, index) => (
-                  <AxisInsightCardV2 axis={axis} key={`${axis.key}-detail-${index}`} />
-                ))}
+              ) : null}
               </div>
-            </details>
-          ) : null : null}
+
+            </div>
+          </div>
         </section>
 
-        {auxiliaryChecks.length ? (
-          <section className="report-section report-section-tight report-section-subdued" aria-labelledby="auxiliary-checks-heading">
-            <div className="report-section-heading">
-              <p className="report-core-label">보조 체크</p>
-              <h2 id="auxiliary-checks-heading">계약·조직·프로세스 확인</h2>
-            </div>
+        <section className="report-rebuild-section" aria-labelledby="paid-report-feedback-heading">
+            <ReportSectionRail
+              index="05"
+              label="PAID REPORT FEEDBACK"
+              titleLines={['의견을 보내주세요']}
+              bodyLines={[]}
+            />
 
-            <div className="report-axis-stack report-axis-stack-briefing report-axis-stack-cards">
-              {auxiliaryChecks.map((check) => {
-                const tone = getTone(check.level)
-                return (
-                  <article className={`report-axis-card tone-${tone}`} key={check.key}>
-                    <div className="report-axis-card-head">
-                      <div>
-                        <p className="report-axis-definition">{check.label}</p>
-                        <h3>{check.summary}</h3>
-                      </div>
-                      <span className={`report-status-chip tone-${tone}`}>{getUnifiedAuxiliaryStatus(check.level)}</span>
-                    </div>
+          <div className="report-rebuild-content">
+            <ReportFeedbackCard analysisId={analysisId} />
+          </div>
+        </section>
 
-                    {check.evidence?.quote ? (
-                      <blockquote className="report-evidence-quote">“{check.evidence.quote}”</blockquote>
-                    ) : null}
-
-                    <div className="report-question-signals">
-                      <p>
-                        <strong>면접 질문</strong>
-                        {check.question}
-                      </p>
-                      <p>
-                        <strong>좋은 답변</strong>
-                        {check.goodAnswerSignal}
-                      </p>
-                      <p>
-                        <strong>주의할 답변</strong>
-                        {check.riskyAnswerSignal}
-                      </p>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {companySection ? (
-          <section className="report-section report-section-tight" aria-labelledby="company-context-heading">
-            <div className="report-section-heading">
-              <h2 id="company-context-heading">{companySection.title}</h2>
-            </div>
-
-            <section className="report-context-surface">
-              <div className="report-context-summary-block">
-                <p className="report-context-bridge">{companySection.bridge}</p>
-              </div>
-
-              <div className="report-context-body">
-                <h3>직무 해석</h3>
-                <p>{companySection.interpretation}</p>
-              </div>
-
-              {companySection.companyEvidence.length ? (
-                <div className="report-context-body">
-                  <h3>회사 근거</h3>
-                  <ul className="report-context-links report-context-links-detailed">
-                    {companySection.companyEvidence.map((item) => (
-                      <li key={item.url}>
-                        <a href={item.url} target="_blank" rel="noreferrer">
-                          {item.title}
-                        </a>
-                        <p>{item.summary}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {companySection.postingEvidence.length ? (
-                <div className="report-context-body">
-                  <h3>공고 근거</h3>
-                  <ul className="briefing-bullets report-context-section-list">
-                    {companySection.postingEvidence.map((item) => (
-                      <li key={item.quote}>
-                        {item.quote}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {companySection.questions.length ? (
-                <div className="report-context-body">
-                  <h3>면접에서 확인할 질문</h3>
-                  <ul className="report-question-stack report-question-stack-compact">
-                    {companySection.questions.map((item) => (
-                      <li key={item.question}>
-                        <strong>{item.question}</strong>
-                        <p>{item.whyAsk}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </section>
-          </section>
-        ) : null}
-
-        <ReportFeedback analysisId={analysisId} />
-      </main>
-      <SiteFooter />
-    </>
+      </div>
+    </RebuildFlowShell>
   )
 }

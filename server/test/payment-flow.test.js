@@ -2,8 +2,16 @@ import assert from 'node:assert/strict'
 import { after, before, beforeEach, test } from 'node:test'
 
 import { app } from '../src/index.js'
+import { buildDetailReport, buildPreview, DETAIL_SCHEMA_VERSION } from '../src/lib/analysis.js'
 import { verifyPortOnePayment } from '../src/lib/portone.js'
-import { deleteOrderForTest, resetMemoryStoreForTest } from '../src/lib/store.js'
+import {
+  deleteOrderForTest,
+  getAnalysis,
+  markPaidReady,
+  resetMemoryStoreForTest,
+  saveAnalysis,
+  saveGeneratedDetail,
+} from '../src/lib/store.js'
 
 process.env.OPENAI_API_KEY = ''
 process.env.PORTONE_API_SECRET = ''
@@ -75,6 +83,56 @@ Preferred
   assert.ok(data.analysisId)
   assert.equal(typeof data.engine, 'string')
   return data
+}
+
+async function createPaidAnalysisWithStoredDetail({ detailVersion = DETAIL_SCHEMA_VERSION } = {}) {
+  const jobPostingText = `
+뷰티 자사몰 마케팅 담당
+주요업무
+- CRM 캠페인 운영 및 프로모션 실행
+- 채널별 전환율 분석과 성과 리포트 작성
+- 인플루언서 협업 일정 조율 및 콘텐츠 성과 관리
+자격요건
+- 마케팅 운영 경험
+`
+
+  const preview = await buildPreview({ jobPostingText })
+  const analysis = await saveAnalysis({
+    jobPostingText,
+    structured: preview.structured,
+    freePreview: preview.freePreview,
+    detail: null,
+    paid: false,
+    engine: preview.engine,
+  })
+  const detail = await buildDetailReport({
+    analysis: {
+      structured: preview.structured,
+      freePreview: preview.freePreview,
+    },
+  })
+
+  await saveGeneratedDetail({
+    analysisId: analysis.analysisId,
+    detail: detail.detail,
+    decisionReport: detail.decisionReport,
+    detailEngine: detail.engine,
+    detailVersion,
+  })
+
+  const paid = await markPaidReady({
+    analysisId: analysis.analysisId,
+    orderId: `order_${detailVersion}`,
+    paymentId: `payment_${detailVersion}`,
+    amount: 3000,
+    transactionId: `tx_${detailVersion}`,
+  })
+
+  return {
+    analysisId: analysis.analysisId,
+    reportAccessToken: paid.reportAccessToken,
+    originalDetailVersion: detailVersion,
+  }
 }
 
 test('preview rejects short job postings', async () => {
@@ -157,6 +215,29 @@ test('payment verify uses the stored order amount and unlocks detail with token'
   assert.equal(detail.data.ok, true)
   assert.equal(typeof detail.data.detail.finalSummary, 'string')
   assert.equal(typeof detail.data.detailEngine, 'string')
+})
+
+test('stale paid detail falls back while a rebuild is scheduled', async () => {
+  const stale = await createPaidAnalysisWithStoredDetail({ detailVersion: 'jobrisk-detail-v1' })
+
+  const firstDetail = await get(`/api/analyze/${stale.analysisId}/detail?token=${encodeURIComponent(stale.reportAccessToken)}`)
+  assert.equal(firstDetail.response.status, 200)
+  assert.equal(firstDetail.data.ok, true)
+  assert.equal(firstDetail.data.detailStale, true)
+  assert.equal(firstDetail.data.detailVersion, 'jobrisk-detail-v1')
+  assert.equal(firstDetail.data.detailStatus, 'generating')
+
+  const status = await waitForDetailReady(stale.analysisId, stale.reportAccessToken, 2500)
+  assert.equal(status.detailStatus, 'ready')
+  assert.equal(status.detailStale, false)
+
+  const refreshedAnalysis = await getAnalysis(stale.analysisId)
+  assert.equal(refreshedAnalysis.detailVersion, DETAIL_SCHEMA_VERSION)
+
+  const refreshedDetail = await get(`/api/analyze/${stale.analysisId}/detail?token=${encodeURIComponent(stale.reportAccessToken)}`)
+  assert.equal(refreshedDetail.response.status, 200)
+  assert.equal(refreshedDetail.data.detailStale, false)
+  assert.equal(refreshedDetail.data.detailVersion, DETAIL_SCHEMA_VERSION)
 })
 
 test('payment verify rejects analysis and order mismatch', async () => {

@@ -5,12 +5,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { buildDetailReport, buildPreview } from './lib/analysis.js'
+import { buildDetailReport, buildPreview, DETAIL_SCHEMA_VERSION } from './lib/analysis.js'
 import { relayFeedbackToFormsfree, relayPaymentNotificationToFormsfree } from './lib/feedbackRelay.js'
 import {
   createOrder,
   getAnalysis,
   getOrder,
+  hasCurrentDetailBundle,
+  markDetailGenerating,
   markDetailFailed,
   markPaidReady,
   saveAnalysis,
@@ -32,6 +34,8 @@ const enableConditionalPreviewOverride =
 
 app.use(cors())
 app.use(express.json({ limit: '1mb' }))
+
+const activeDetailGenerations = new Set()
 
 async function appendTimingLog(event, payload) {
   try {
@@ -61,6 +65,50 @@ function getDetailStatus(analysis) {
   if (analysis?.detailStatus) return analysis.detailStatus
   if (analysis?.detail) return 'ready'
   return 'idle'
+}
+
+function hasStoredDetail(analysis) {
+  return Boolean(analysis?.detail)
+}
+
+function isDetailStale(analysis) {
+  return hasStoredDetail(analysis) && !hasCurrentDetailBundle(analysis)
+}
+
+function buildDetailMeta(analysis, overrides = {}) {
+  const detailStale = overrides.detailStale ?? isDetailStale(analysis)
+  return {
+    detailStatus: overrides.detailStatus ?? getDetailStatus(analysis),
+    detailStale,
+    detailVersion: analysis?.detailVersion || null,
+    detailEngine: analysis?.detailEngine || (analysis?.detail ? 'stored_detail' : null),
+  }
+}
+
+async function scheduleDetailRebuildIfNeeded({ analysisId, analysis }) {
+  if (!analysis?.paid) {
+    return { scheduled: false, ...buildDetailMeta(analysis, { detailStale: false }) }
+  }
+
+  if (hasCurrentDetailBundle(analysis)) {
+    return { scheduled: false, ...buildDetailMeta(analysis, { detailStatus: 'ready', detailStale: false }) }
+  }
+
+  const detailStatus = getDetailStatus(analysis)
+  const detailStale = isDetailStale(analysis)
+  if (detailStatus === 'generating') {
+    setTimeout(() => {
+      void startDetailGeneration({ analysisId })
+    }, 0)
+    return { scheduled: false, ...buildDetailMeta(analysis, { detailStatus, detailStale }) }
+  }
+
+  await markDetailGenerating({ analysisId })
+  setTimeout(() => {
+    void startDetailGeneration({ analysisId })
+  }, 0)
+
+  return { scheduled: true, ...buildDetailMeta(analysis, { detailStatus: 'generating', detailStale }) }
 }
 
 function isDbUnavailableError(error) {
@@ -104,6 +152,9 @@ async function notifyPaymentCompleted({ analysisId, orderId, paymentId, customer
 }
 
 async function startDetailGeneration({ analysisId }) {
+  if (activeDetailGenerations.has(analysisId)) return
+  activeDetailGenerations.add(analysisId)
+
   const startedAt = Date.now()
   let detailBuildDurationMs = 0
   let saveDurationMs = 0
@@ -111,7 +162,7 @@ async function startDetailGeneration({ analysisId }) {
   try {
     const analysis = await getAnalysis(analysisId)
     if (!analysis || !analysis.paid) return
-    if (getDetailStatus(analysis) === 'ready' && analysis.detail) return
+    if (getDetailStatus(analysis) === 'ready' && hasCurrentDetailBundle(analysis)) return
 
     const detailBuildStartedAt = Date.now()
     const builtDetail = await buildDetailReport({ analysis })
@@ -121,7 +172,9 @@ async function startDetailGeneration({ analysisId }) {
     await saveGeneratedDetail({
       analysisId,
       detail: builtDetail.detail,
+      decisionReport: builtDetail.decisionReport || null,
       detailEngine: builtDetail.engine,
+      detailVersion: builtDetail.detailVersion || DETAIL_SCHEMA_VERSION,
       detailErrorStage: builtDetail.openAiErrorStage ?? null,
     })
     saveDurationMs = Date.now() - saveStartedAt
@@ -159,6 +212,8 @@ async function startDetailGeneration({ analysisId }) {
       message: error?.message || String(error),
     })
     await appendTimingLog('detail/generate', generationErrorLogPayload)
+  } finally {
+    activeDetailGenerations.delete(analysisId)
   }
 }
 
@@ -291,7 +346,11 @@ app.post('/api/payments/verify', async (req, res) => {
       })
       const saveDurationMs = Date.now() - saveStartedAt
       const totalDurationMs = Date.now() - requestStartedAt
-      const detailStatus = paid.detailStatus || getDetailStatus(analysis)
+      const refreshedAnalysis = await getAnalysis(analysisId)
+      const rebuild = await scheduleDetailRebuildIfNeeded({ analysisId, analysis: refreshedAnalysis })
+      const detailStatus = rebuild.detailStatus || paid.detailStatus || getDetailStatus(refreshedAnalysis)
+      const detailStale = rebuild.detailStale ?? paid.detailStale ?? isDetailStale(refreshedAnalysis)
+      const detailEngine = refreshedAnalysis?.detailEngine || (refreshedAnalysis?.detail ? 'stored_detail' : null)
 
       const recoveredPaymentLogPayload = {
         analysisId,
@@ -301,11 +360,12 @@ app.post('/api/payments/verify', async (req, res) => {
         detailBuildDurationMs: 0,
         saveDurationMs,
         totalDurationMs,
-        reusedStoredDetail: Boolean(analysis.detail),
+        reusedStoredDetail: Boolean(refreshedAnalysis?.detail),
         detailStatus,
-        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        detailEngine,
         recoveredMissingOrder: true,
-        ...buildOpenAiTimingFields({ openAiErrorStage: analysis.detailErrorStage || null }),
+        detailStale,
+        ...buildOpenAiTimingFields({ openAiErrorStage: refreshedAnalysis?.detailErrorStage || null }),
       }
       console.warn('[jobrisk][payments/verify] recovered missing order', recoveredPaymentLogPayload)
       await appendTimingLog('payments/verify', recoveredPaymentLogPayload)
@@ -323,15 +383,11 @@ app.post('/api/payments/verify', async (req, res) => {
         analysisId,
         paymentId,
         reportAccessToken: paid.reportAccessToken,
-        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        detailEngine,
         detailStatus,
+        detailStale,
+        detailVersion: refreshedAnalysis?.detailVersion || null,
       })
-
-      if (detailStatus === 'generating') {
-        setTimeout(() => {
-          void startDetailGeneration({ analysisId })
-        }, 0)
-      }
       return
     }
     if (order.analysisId !== analysisId) {
@@ -340,7 +396,10 @@ app.post('/api/payments/verify', async (req, res) => {
     }
 
     if (order.status === 'PAID' && analysis.paid && analysis.reportAccessToken) {
-      const detailStatus = getDetailStatus(analysis)
+      const rebuild = await scheduleDetailRebuildIfNeeded({ analysisId, analysis })
+      const detailStatus = rebuild.detailStatus || getDetailStatus(analysis)
+      const detailStale = rebuild.detailStale ?? isDetailStale(analysis)
+      const detailEngine = analysis.detailEngine || (analysis.detail ? 'stored_detail' : null)
       const reusedPaidLogPayload = {
         analysisId,
         orderId,
@@ -351,7 +410,8 @@ app.post('/api/payments/verify', async (req, res) => {
         totalDurationMs: Date.now() - requestStartedAt,
         reusedStoredDetail: true,
         detailStatus,
-        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        detailEngine,
+        detailStale,
         ...buildOpenAiTimingFields({ openAiErrorStage: analysis.detailErrorStage || null }),
       }
       console.info('[jobrisk][payments/verify]', reusedPaidLogPayload)
@@ -362,8 +422,10 @@ app.post('/api/payments/verify', async (req, res) => {
         analysisId,
         paymentId: order.paymentId || paymentId,
         reportAccessToken: analysis.reportAccessToken,
-        detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+        detailEngine,
         detailStatus,
+        detailStale,
+        detailVersion: analysis.detailVersion || null,
       })
       return
     }
@@ -382,7 +444,11 @@ app.post('/api/payments/verify', async (req, res) => {
     })
     const saveDurationMs = Date.now() - saveStartedAt
     const totalDurationMs = Date.now() - requestStartedAt
-    const detailStatus = paid.detailStatus || getDetailStatus(analysis)
+    const refreshedAnalysis = await getAnalysis(analysisId)
+    const rebuild = await scheduleDetailRebuildIfNeeded({ analysisId, analysis: refreshedAnalysis })
+    const detailStatus = rebuild.detailStatus || paid.detailStatus || getDetailStatus(refreshedAnalysis)
+    const detailStale = rebuild.detailStale ?? paid.detailStale ?? isDetailStale(refreshedAnalysis)
+    const detailEngine = refreshedAnalysis?.detailEngine || (refreshedAnalysis?.detail ? 'stored_detail' : null)
 
     const paymentLogPayload = {
       analysisId,
@@ -392,10 +458,11 @@ app.post('/api/payments/verify', async (req, res) => {
       detailBuildDurationMs: 0,
       saveDurationMs,
       totalDurationMs,
-      reusedStoredDetail: Boolean(analysis.detail),
+      reusedStoredDetail: Boolean(refreshedAnalysis?.detail),
       detailStatus,
-      detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
-      ...buildOpenAiTimingFields({ openAiErrorStage: analysis.detailErrorStage || null }),
+      detailEngine,
+      detailStale,
+      ...buildOpenAiTimingFields({ openAiErrorStage: refreshedAnalysis?.detailErrorStage || null }),
     }
     console.info('[jobrisk][payments/verify]', paymentLogPayload)
     await appendTimingLog('payments/verify', paymentLogPayload)
@@ -413,15 +480,11 @@ app.post('/api/payments/verify', async (req, res) => {
       analysisId,
       paymentId,
       reportAccessToken: paid.reportAccessToken,
-      detailEngine: analysis.detailEngine || (analysis.detail ? 'stored_detail' : null),
+      detailEngine,
       detailStatus,
+      detailStale,
+      detailVersion: refreshedAnalysis?.detailVersion || null,
     })
-
-    if (detailStatus === 'generating') {
-      setTimeout(() => {
-        void startDetailGeneration({ analysisId })
-      }, 0)
-    }
   } catch (error) {
     res
       .status(getStatusCodeForError(error, 400))
@@ -447,10 +510,14 @@ app.get('/api/analyze/:analysisId/detail-status', async (req, res) => {
       return
     }
 
+    const rebuild = await scheduleDetailRebuildIfNeeded({ analysisId: analysis.analysisId, analysis })
+
     res.json({
       ok: true,
       analysisId: analysis.analysisId,
-      detailStatus: getDetailStatus(analysis),
+      detailStatus: rebuild.detailStatus || getDetailStatus(analysis),
+      detailStale: rebuild.detailStale ?? isDetailStale(analysis),
+      detailVersion: analysis.detailVersion || null,
       detailEngine: analysis.detailEngine || null,
       detailErrorStage: analysis.detailErrorStage || null,
     })
@@ -477,12 +544,14 @@ app.get('/api/analyze/:analysisId/detail', async (req, res) => {
       return
     }
 
-    const detailStatus = getDetailStatus(analysis)
-    if (detailStatus === 'generating') {
+    const rebuild = await scheduleDetailRebuildIfNeeded({ analysisId: analysis.analysisId, analysis })
+    const detailStatus = rebuild.detailStatus || getDetailStatus(analysis)
+    const detailStale = rebuild.detailStale ?? isDetailStale(analysis)
+    if (detailStatus === 'generating' && !analysis.detail) {
       res.status(409).json({ ok: false, detailStatus, message: '?곸꽭 由ы룷?몃? ?앹꽦?섍퀬 ?덉뒿?덈떎. ?좎떆留? ??寃곌낵瑜??뺤씤?댁＜?몄슂.' })
       return
     }
-    if (detailStatus === 'failed') {
+    if (detailStatus === 'failed' && !analysis.detail) {
       res.status(409).json({
         ok: false,
         detailStatus,
@@ -496,7 +565,15 @@ app.get('/api/analyze/:analysisId/detail', async (req, res) => {
       return
     }
 
-    res.json({ ok: true, detail: analysis.detail, detailEngine: analysis.detailEngine || 'stored_detail' })
+    res.json({
+      ok: true,
+      detail: analysis.detail,
+      decisionReport: analysis.decisionReport || null,
+      detailEngine: analysis.detailEngine || 'stored_detail',
+      detailStatus,
+      detailStale,
+      detailVersion: analysis.detailVersion || null,
+    })
   } catch (error) {
     res.status(500).json({ ok: false, message: error.message || '상세 리포트 조회 중 오류가 발생했습니다.' })
   }
@@ -511,6 +588,8 @@ app.post('/api/feedback', async (req, res) => {
       return
     }
 
+    const analysis = await getAnalysis(analysisId)
+
     await saveFeedback({
       analysisId,
       rating,
@@ -520,6 +599,7 @@ app.post('/api/feedback', async (req, res) => {
       analysisId,
       rating,
       note: String(req.body?.note || '').trim(),
+      analysis,
     })
     res.json({ ok: true })
   } catch (error) {

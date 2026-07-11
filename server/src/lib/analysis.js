@@ -13,6 +13,7 @@ function positiveIntegerEnv(...names) {
 
 export const PREVIEW_MODEL = process.env.OPENAI_PREVIEW_MODEL || 'gpt-5-mini'
 export const DETAIL_MODEL = process.env.OPENAI_DETAIL_MODEL || 'gpt-5.2'
+export const DETAIL_SCHEMA_VERSION = 'jobrisk-detail-v2'
 export const PREVIEW_LLM_ENABLED =
   String(process.env.JOBRISK_ENABLE_PREVIEW_LLM || '').toLowerCase().trim() === 'true'
 export const DETAIL_MAX_OUTPUT_TOKENS = positiveIntegerEnv('OPENAI_DETAIL_MAX_OUTPUT_TOKENS', 'JOBRISK_DETAIL_MAX_OUTPUT_TOKENS') || 5000
@@ -142,6 +143,7 @@ export const DETAIL_RESPONSE_FORMAT = {
             riskyAnswerSignal: { type: 'string' },
             category: { type: 'string' },
             whyAsk: { type: 'string' },
+            answerDecisionHint: { type: 'string' },
           },
         },
       },
@@ -186,31 +188,31 @@ const SECTION_SOURCE_PRIORITIES = {
 const AXES = [
   {
     key: 'repetition',
-    label: '단순 운영 비중',
+    label: '반복 일이 많은가',
     risky: ['반복', '운영', '업로드', '요청 처리', '모니터링', '관리', '기술지원', '헬프데스크', '유지보수'],
     positive: ['개선', '기획', '실험', '전략', '문제 정의'],
   },
   {
     key: 'responsibility',
-    label: '내 권한과 책임',
+    label: '내가 주도할 수 있나',
     risky: ['보조', '지원', '단순', '기타 업무', '팀원', '요청사항 반영'],
     positive: ['책임 범위', '책임지고', '책임집니다', '성과 책임', '오너십', '리딩', '의사결정', '주도', '설계', '구현', 'A to Z', '목표 수립'],
   },
   {
     key: 'measurable',
-    label: '성과를 보여주기 쉬운가',
+    label: '성과를 보여줄 수 있나',
     risky: ['정성', '지원 업무', '기타'],
     positive: ['KPI', 'OKR', '지표', '데이터', '결과 보고', '전환율', '매출', '리텐션'],
   },
   {
     key: 'difficulty',
-    label: '더 어려운 일을 맡게 되는가',
+    label: '더 큰 일로 이어지나',
     risky: ['단순', '반복', '정기'],
     positive: ['고도화', '신규', '복잡', '리딩', '전략', '개선'],
   },
   {
     key: 'transferable',
-    label: '이직할 때 설명할 경험이 남는가',
+    label: '이직할 때 남는 경험인가',
     risky: ['내부 전용', '단순 처리', '보조'],
     positive: ['기획', '분석', '전략', '데이터', '실험', '보고', '문서화'],
   },
@@ -220,13 +222,13 @@ const SEVEN_AXES = [
   ...AXES,
   {
     key: 'scopeClarity',
-    label: '업무 범위가 선명한가',
+    label: '무슨 일을 맡는지 분명한가',
     risky: ['업무 전반', '전반 업무', '전반적인', '기타 업무', '다양한 업무', '필요 시', '필요에 따라', '유관 업무', '운영 전반', '지원 전반', '보안사항', '인터뷰시 안내', '면접시 안내', '직책', '팀원'],
     positive: ['역할 범위', '담당 범위', '책임 범위', '담당 제품', '담당 영역', '주요 산출물', 'R&R', '오너십', '명확', '전담', 'Owner'],
   },
   {
     key: 'learningFeedback',
-    label: '배우고 개선하는 구조가 있는가',
+    label: '배우고 나아질 수 있나',
     risky: ['처리', '응대', '등록', '검수', '정산', '반복', '요청사항 반영'],
     positive: ['회고', '피드백', '성과 리뷰', '데이터 기반', '실험', 'A/B', '개선안', '원인 분석', '재발 방지'],
   },
@@ -399,6 +401,24 @@ function linesFrom(text) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
+}
+
+function sanitizeTitleCandidate(line) {
+  const value = String(line || '').trim()
+  if (!value) return ''
+
+  const cutPatterns = [
+    /\s+(합격보상|응답률|원티드 픽|포지션 상세|추천인 각 현금|지원자,\s*추천인 각 현금|지원하기)/i,
+    /\s+지원자,\s*추천인\s*각\s*현금.*$/i,
+    /\s+(글로벌 .*채용합니다|해당 포지션은 .*)/i,
+  ]
+
+  let sanitized = value
+  for (const pattern of cutPatterns) {
+    sanitized = sanitized.replace(pattern, '').trim()
+  }
+
+  return sanitized
 }
 
 const POSTING_TAIL_CUTOFF_PATTERNS = [
@@ -1101,7 +1121,7 @@ function looksLikeJobTitle(line) {
 }
 
 function extractJobTitleFromLines(lines) {
-  const safeLines = (lines || []).map((line) => String(line || '').trim()).filter(Boolean)
+  const safeLines = (lines || []).map((line) => sanitizeTitleCandidate(line)).filter(Boolean)
   const earlyLines = safeLines.slice(0, 12)
   const preferredCandidates = earlyLines.filter((line) => looksLikeJobTitle(line))
 
@@ -1130,7 +1150,7 @@ function buildClassificationLines(structured) {
   }
 
   for (const line of structured?.lines || []) {
-    const value = String(line || '').trim()
+    const value = sanitizeTitleCandidate(line)
     if (!value || looksLikeTitleNoise(value)) continue
     if (/[∙·•]/.test(value) && /(경력|신입|정규직|계약직|서울|경기|부산|대전|인천|대구|광주|울산)/i.test(value)) continue
     if (value === jobTitle) continue
@@ -1144,6 +1164,9 @@ function buildClassificationLines(structured) {
 function classifyJobFamilyFromTitle(title) {
   const value = String(title || '').trim()
   if (!value) return null
+  if (/(마케팅|marketing|marketer|crm|퍼포먼스|performance|브랜드 마케팅|콘텐츠 마케팅|그로스|growth|d2c|자사몰)/i.test(value)) {
+    return { id: 'marketing', label: '마케팅/브랜드/조사', confidence: 'high' }
+  }
   if (/(프로덕트 매니저|product manager|product owner|프로덕트 오너|\bpo\b|\bpm\b|prd|퍼널|리텐션|활성화율|a\/b 테스트|실험 설계|head of product|스쿼드)/i.test(value)) {
     return { id: 'product', label: '프로덕트/기획', confidence: 'high' }
   }
@@ -1338,12 +1361,39 @@ function renderAxisMessage(_axis, level) {
   return map[level]
 }
 
+function getAxisInsufficientInfoSummary(axisKey) {
+  const map = {
+    repetition: '반복 업무 비중은 더 확인이 필요합니다.',
+    responsibility: '실제 결정권은 확인이 필요합니다.',
+    measurable: '성과 기준은 더 확인이 필요합니다.',
+    difficulty: '성장 난이도는 더 확인이 필요합니다.',
+    transferable: '이직에 남을 경험인지는 더 확인이 필요합니다.',
+    scopeClarity: '핵심 역할 경계가 모호합니다.',
+    learningFeedback: '배우고 개선하는 구조는 더 확인이 필요합니다.',
+  }
+
+  return map[axisKey] || '핵심 기준은 더 확인이 필요합니다.'
+}
+
 function normalizeAxisVerdict(axisKey, level, evidenceText = '') {
   if (axisKey === 'responsibility' && level === 'strong_positive') {
     const hasExplicitAuthorityCue =
       /(의사결정|오너십|owner|ownership|목표 수립|우선순위|kpi|okr|예산|p&l|리딩|주도|전략 수립)/i.test(evidenceText)
     const hasImprovementOwnershipCue = /(개선).*(책임|주도|리딩|소유|오너십)/i.test(evidenceText)
     if (!hasExplicitAuthorityCue && !hasImprovementOwnershipCue) return 'positive_with_check'
+  }
+
+  if (axisKey === 'scopeClarity' && level === 'insufficient_info') {
+    const scopeBreadthHits = countDistinctKeywordHits(evidenceText, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석'])
+    if (scopeBreadthHits >= 3 || /(업무 전반|전반 업무|다양한 업무|필요 시|유관 업무)/i.test(evidenceText)) {
+      return 'mixed_signal'
+    }
+  }
+
+  if (axisKey === 'repetition' && level === 'strong_positive') {
+    const hasOperationalCue = /(운영|관리|일정|협업|조율|프로모션|crm|콘텐츠|라이브커머스|인플루언서)/i.test(evidenceText)
+    const hasImprovementCue = /(개선|분석|전략|실험|리포트|성과)/i.test(evidenceText)
+    if (hasOperationalCue && hasImprovementCue) return 'positive_with_check'
   }
   return level
 }
@@ -1426,6 +1476,12 @@ function applyContextualAxisAdjustments(sevenAxes, structured, jobFamily) {
   const brandContentStrategyQuote =
     findRawLine(structured?.lines, (line) => /(캠페인 기획|콘텐츠 기획|콘텐츠 전략|브랜드 전략|seo|geo).*(실행|운영|리포트|성과 분석)/i.test(line)) ||
     findRawLine(structured?.lines, (line) => /(성과 분석|전환율|매출|리포트|스토리텔링|파트너십)/i.test(line))
+  const marketingBreadthQuote =
+    findRawLine(
+      structured?.lines,
+      (line) =>
+        countDistinctKeywordHits(line, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 3,
+    ) || ''
 
   return (sevenAxes || []).map((axis) => {
     if (strategicHr && axis.key === 'repetition' && axis.level === 'risk' && strategicHrQuote) {
@@ -1480,6 +1536,27 @@ function applyContextualAxisAdjustments(sevenAxes, structured, jobFamily) {
         levelLabel: levelToKo('mixed_signal'),
         summary: '운영 요소는 보이지만, 캠페인·콘텐츠 전략과 성과 분석이 함께 적혀 있어 단순 반복 운영으로 단정하기는 어렵습니다.',
         evidence: createRawEvidence(brandContentStrategyQuote, axis.key),
+      }
+    }
+
+    if (jobFamily?.id === 'marketing' && axis.key === 'scopeClarity' && marketingBreadthQuote) {
+      return {
+        ...axis,
+        level: axis.level === 'risk' ? 'risk' : 'mixed_signal',
+        levelLabel: levelToKo(axis.level === 'risk' ? 'risk' : 'mixed_signal'),
+        summary:
+          '업무 항목은 충분히 적혀 있지만 자사몰, CRM, 콘텐츠, 프로모션, 라이브커머스가 함께 묶여 있어 핵심 역할 경계는 확인이 필요합니다.',
+        evidence: createRawEvidence(marketingBreadthQuote, axis.key),
+      }
+    }
+
+    if (jobFamily?.id === 'marketing' && axis.key === 'repetition' && marketingBreadthQuote && axis.level === 'strong_positive') {
+      return {
+        ...axis,
+        level: 'positive_with_check',
+        levelLabel: levelToKo('positive_with_check'),
+        summary: '성과 분석과 전략 개선 문구는 보이지만 운영성 업무도 넓게 포함돼 있어 실제 비중 확인이 필요합니다.',
+        evidence: createRawEvidence(marketingBreadthQuote, axis.key),
       }
     }
 
@@ -2149,6 +2226,7 @@ function buildPrimaryQuestion({ jobFamily, fiveAxes, criteria }) {
   const responsibility = fiveAxes.find((axis) => axis.key === 'responsibility')
   const repetition = fiveAxes.find((axis) => axis.key === 'repetition')
   const measurable = fiveAxes.find((axis) => axis.key === 'measurable')
+  const scopeClarity = fiveAxes.find((axis) => axis.key === 'scopeClarity')
 
   if (jobFamily?.id === 'development') {
     if (responsibility?.level === 'positive_with_check' || responsibility?.level === 'insufficient_info') {
@@ -2180,6 +2258,21 @@ function buildPrimaryQuestion({ jobFamily, fiveAxes, criteria }) {
     }
     if (measurable?.level === 'insufficient_info') {
       return '이 역할의 결과물은 어떤 기준이나 지표로 평가하나요?'
+    }
+  }
+
+  if (jobFamily?.id === 'marketing') {
+    if (scopeClarity?.level === 'risk' || scopeClarity?.level === 'mixed_signal') {
+      return '자사몰, CRM, 콘텐츠, 프로모션, 협업 업무 중 실제 주업무는 무엇이고 각각의 비중은 어떻게 나뉘나요?'
+    }
+    if (responsibility?.level === 'mixed_signal' || responsibility?.level === 'positive_with_check') {
+      return '예산, 채널, 프로모션, 우선순위 중 제가 직접 결정하거나 제안할 수 있는 범위는 어디까지인가요?'
+    }
+    if (measurable?.level === 'mixed_signal' || measurable?.level === 'positive_with_check') {
+      return 'ROAS, CVR, 매출, 리텐션 같은 지표 중 제가 직접 책임지는 항목은 무엇인가요?'
+    }
+    if (repetition?.level === 'risk' || repetition?.level === 'mixed_signal') {
+      return '반복 운영 업무와 기획·개선 업무의 실제 비중은 어느 정도인가요?'
     }
   }
 
@@ -2243,6 +2336,38 @@ function buildPreviewHeadline({ risk, jobFamily, fiveAxes }) {
   }
 
   return headlineMap[risk]
+}
+
+function buildPreviewHeadlineFromLeadRisk({ leadRisk, risk, jobFamily, fiveAxes }) {
+  if (!leadRisk?.key) return buildPreviewHeadline({ risk, jobFamily, fiveAxes })
+
+  if (leadRisk.key === 'scopeClarity') {
+    if (jobFamily?.id === 'marketing') {
+      return '업무 범위가 넓게 묶여 있어 실제 주업무와 우선순위를 먼저 확인해야 합니다.'
+    }
+    if (jobFamily?.id === 'development') {
+      return '신규 개발 외 운영·협업 업무 비중이 함께 묶여 있으면 실제 주업무를 먼저 확인해야 합니다.'
+    }
+    return '업무 범위가 넓게 묶여 있어 실제 핵심 업무를 먼저 확인해야 합니다.'
+  }
+
+  if (leadRisk.key === 'responsibility') {
+    return jobFamily?.id === 'marketing'
+      ? '전략 문구는 보이지만 실제 결정권 범위는 면접에서 확인해야 합니다.'
+      : '역할은 적혀 있지만 실제 결정권 범위는 면접에서 확인해야 합니다.'
+  }
+
+  if (leadRisk.key === 'measurable') {
+    return jobFamily?.id === 'marketing'
+      ? '성과 분석 문구는 보이지만 직접 책임지는 KPI는 면접에서 확인해야 합니다.'
+      : '성과 문구는 보이지만 직접 책임지는 평가 기준은 면접에서 확인해야 합니다.'
+  }
+
+  if (leadRisk.key === 'repetition') {
+    return '개선 문구가 있어도 운영 비중이 더 크면 경력 자산이 약해질 수 있어 확인이 필요합니다.'
+  }
+
+  return toSentenceLimitedText(leadRisk.summary, 1) || buildPreviewHeadline({ risk, jobFamily, fiveAxes })
 }
 
 function previewFocusAxes(fiveAxes, risk = 'medium') {
@@ -2442,6 +2567,142 @@ function buildPreviewSupportReason({ reliabilityGate, shortReasons, fiveAxes, in
   return (shortReasons || []).find((reason) => reason && !isPreviewTextNearDuplicate(reason, interpretation)) || ''
 }
 
+function buildFreePreviewReasonFromAxis(axis) {
+  if (!axis) return ''
+  if (axis.key === 'scopeClarity') {
+    const summary = sanitizeFreePreviewText(axis.summary)
+    if (summary) return summary
+    if (axis.level === 'risk' || axis.level === 'mixed_signal') {
+      return '업무 범위가 넓게 묶여 있어 실제 주업무와 보조 업무 비중을 먼저 확인해야 합니다.'
+    }
+    if (axis.level === 'positive_with_check' || axis.level === 'insufficient_info') {
+      return '업무 항목은 보이지만 핵심 역할과 부수 업무 경계는 더 확인해야 합니다.'
+    }
+    return '업무 범위는 비교적 보이지만 실제 책임 경계는 한 번 더 확인해야 합니다.'
+  }
+
+  return buildPreviewShortReason(axis) || buildAxisFreePreviewText(axis) || ''
+}
+
+function buildFreePreviewLeadRiskQuestion({ key, jobFamily, fiveAxes, criteria }) {
+  if (key === 'scopeClarity') {
+    if (jobFamily?.id === 'marketing') {
+      return '이 역할에서 실제 주업무는 무엇이고, 여러 마케팅 업무 중 어디에 가장 많은 시간이 쓰이나요?'
+    }
+    if (jobFamily?.id === 'operations') {
+      return '재고 관리, 입출고 대응, 운영 지원 중 실제 핵심 업무는 무엇이고 어디에 가장 많은 시간이 쓰이나요?'
+    }
+    if (jobFamily?.id === 'development') {
+      return '이 역할에서 신규 개발과 운영 대응 중 실제로 더 큰 비중은 어느 쪽인가요?'
+    }
+    return '이 역할에서 제가 가장 많이 맡게 될 핵심 업무는 무엇인가요?'
+  }
+
+  if (key === 'responsibility') {
+    if (jobFamily?.id === 'marketing') {
+      return '이 역할에서 제가 직접 정하거나 제안할 수 있는 범위는 어디까지인가요?'
+    }
+    return '이 역할에서 제가 직접 결정하거나 책임지는 범위는 어디까지인가요?'
+  }
+
+  if (key === 'measurable') {
+    if (jobFamily?.id === 'marketing') {
+      return '이 역할에서 제가 직접 책임지는 성과 기준은 무엇인가요?'
+    }
+    return '이 역할의 성과는 어떤 지표나 결과물로 평가하나요?'
+  }
+
+  if (key === 'repetition') {
+    return '운영 업무와 개선 업무 중 실제로 더 큰 비중은 어느 쪽인가요?'
+  }
+
+  return buildPrimaryQuestion({ jobFamily, fiveAxes, criteria })
+}
+
+function buildFreePreviewLeadRisk({ risk, jobFamily, fiveAxes, sevenAxes, criteria, sourceLines = [] }) {
+  const axes = (sevenAxes || fiveAxes || []).filter((axis) =>
+    ['scopeClarity', 'responsibility', 'measurable', 'repetition', 'transferable', 'difficulty'].includes(axis?.key),
+  )
+  if (axes.length === 0) return null
+  const marketingScopeBreadthJoinedText = sourceLines.join(' ')
+  const marketingScopeBreadthLine =
+    jobFamily?.id === 'marketing'
+      ? findRawLine(
+          sourceLines,
+          (line) => countDistinctKeywordHits(line, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 3,
+        ) ||
+        sourceLines.find((line) => /(자사몰|crm|인플루언서|콘텐츠|라이브커머스|프로모션|데이터 분석)/i.test(line)) ||
+        ''
+      : ''
+  const hasMarketingScopeBreadthSignal =
+    jobFamily?.id === 'marketing' &&
+    countDistinctKeywordHits(marketingScopeBreadthJoinedText, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 4
+
+  const levelPriority =
+    risk === 'low'
+      ? { strong_positive: 0, positive_with_check: 1, mixed_signal: 2, insufficient_info: 3, risk: 4 }
+      : { risk: 0, mixed_signal: 1, positive_with_check: 2, insufficient_info: 3, strong_positive: 4 }
+  const basePriority = { scopeClarity: 0, responsibility: 1, measurable: 2, repetition: 3, transferable: 4, difficulty: 5 }
+
+  const ranked = [...axes]
+    .map((axis) => {
+      const hasScopeBreadthCandidate = axis?.key === 'scopeClarity' && hasMarketingScopeBreadthSignal
+      const summary = hasScopeBreadthCandidate
+        ? '업무 범위가 넓게 묶여 있어 실제 주업무와 보조 업무 비중을 먼저 확인해야 합니다.'
+        : buildAxisFreePreviewText(axis) || buildFreePreviewReasonFromAxis(axis)
+      const evidenceQuote = axis?.evidence?.quote || (hasScopeBreadthCandidate ? marketingScopeBreadthLine : '')
+      let score = (levelPriority[axis?.level] ?? 99) * 10 + (basePriority[axis?.key] ?? 99)
+      if (hasScopeBreadthCandidate) score -= 20
+      if (evidenceQuote) score -= 2
+      if (jobFamily?.id === 'marketing' && axis?.key === 'scopeClarity' && /(자사몰|crm|콘텐츠|프로모션|인플루언서|라이브커머스|협업)/i.test(evidenceQuote)) {
+        score -= 3
+      }
+      if (jobFamily?.id === 'marketing' && axis?.key === 'scopeClarity' && /(넓|경계|여러 업무|함께 묶)/.test(summary)) {
+        score -= 2
+      }
+      return {
+        key: axis?.key || '',
+        level: axis?.level || '',
+        summary,
+        quote: evidenceQuote,
+        axis,
+        score,
+      }
+    })
+    .filter((candidate) => candidate.key && candidate.summary)
+    .sort((a, b) => a.score - b.score)
+
+  const lead = ranked[0] || null
+  if (!lead) return null
+
+  const supportReasons = []
+  const pushReason = (value) => {
+    if (!value) return
+    if (supportReasons.some((item) => isPreviewTextNearDuplicate(item, value))) return
+    supportReasons.push(value)
+  }
+
+  pushReason(buildFreePreviewReasonFromAxis(lead.axis))
+  for (const candidate of ranked.slice(1)) {
+    if (supportReasons.length >= 2) break
+    pushReason(buildFreePreviewReasonFromAxis(candidate.axis))
+  }
+
+  return {
+    key: lead.key,
+    level: lead.level,
+    summary: lead.summary,
+    quote: lead.quote,
+    supportReasons: supportReasons.slice(0, 2),
+    verificationQuestion: buildFreePreviewLeadRiskQuestion({
+      key: lead.key,
+      jobFamily,
+      fiveAxes,
+      criteria,
+    }),
+  }
+}
+
 function selectPreviewLeadAxis({ fiveAxes, risk }) {
   const axisPriority = ['measurable', 'responsibility', 'transferable', 'difficulty', 'repetition']
   const candidates = [...(fiveAxes || [])].sort((a, b) => {
@@ -2496,7 +2757,7 @@ function dedupeFreePreviewFields(preview, fallbackPreview, trace = null) {
 
   return {
     ...preview,
-    shortReasons: dedupedShortReasons.slice(0, 1),
+    shortReasons: dedupedShortReasons.slice(0, 2),
     topEvidence: {
       ...preview?.topEvidence,
       interpretation: safeInterpretation,
@@ -2527,11 +2788,11 @@ function buildPreviewShortReasons(focusAxes, fiveAxes) {
   return reasons
 }
 
-function buildPreviewHeadlineWithPrompt({ risk, jobFamily, fiveAxes, reliabilityGate }) {
+function buildPreviewHeadlineWithPrompt({ risk, jobFamily, fiveAxes, reliabilityGate, leadRisk = null }) {
   if (reliabilityGate?.criticalCount >= 2) return '법인 실체와 계약 주체를 확인하기 전에는 지원을 보류하는 편이 안전합니다.'
   if (reliabilityGate?.criticalCount >= 1) return '물경력 판단보다 먼저 경력서 제출 안전성과 계약 구조를 확인해야 합니다.'
   if (reliabilityGate?.cautionCount > 0) return '지원 전에 역할 범위와 계약 조건을 먼저 확인하는 편이 안전합니다.'
-  const firstSentence = buildPreviewHeadline({ risk, jobFamily, fiveAxes })
+  const firstSentence = buildPreviewHeadlineFromLeadRisk({ leadRisk, risk, jobFamily, fiveAxes })
   if (jobFamily?.id === 'product' && ['low', 'medium', 'needs_review'].includes(risk) && !/좋은 신호|경력 자산/.test(firstSentence)) {
     return `좋은 신호는 있지만, ${firstSentence}`
   }
@@ -2565,6 +2826,14 @@ function buildFreePreview({ structured, jobFamily, fiveAxes, criteria, criteriaM
         : baselineRisk
   const focusAxes = previewFocusAxes(fiveAxes, risk)
   const shortReasons = buildPreviewShortReasons(focusAxes, fiveAxes)
+  const leadRisk = buildFreePreviewLeadRisk({
+    risk,
+    jobFamily,
+    fiveAxes,
+    sevenAxes: structured.sevenAxes || [],
+    criteria,
+    sourceLines: structured.lines || [],
+  })
   const axisPreviewCandidates = selectFreePreviewAxisCandidates(fiveAxes, risk)
   const riskyAxis = selectPreviewLeadAxis({ fiveAxes: focusAxes.length > 0 ? focusAxes : fiveAxes, risk })
   const employmentFormCheck =
@@ -2594,13 +2863,13 @@ function buildFreePreview({ structured, jobFamily, fiveAxes, criteria, criteriaM
   const preferredEvidence = pickTopEvidence(collectAllowedEvidence(structured.sectionsNormalized), AXES, { usedEvidenceIds, usedParagraphCounts, jobFamilyId: jobFamily.id })
   const gateQuote = reliabilityGate.primarySignal?.quote || ''
   const riskyAxisQuote = riskyAxis?.evidence?.quote || ''
-  const roleQuestion = buildPrimaryQuestion({ jobFamily, fiveAxes, criteria })
+  const roleQuestion = buildPrimaryQuestion({ jobFamily, fiveAxes, criteria, leadRiskKey: leadRisk?.key })
   const shouldUseEmploymentAsLead = !reliabilityGate.primarySignal && !!employmentFormCheck
   const whyImportant =
     reliabilityGate.primarySignal?.whyImportant ||
     (shouldUseEmploymentAsLead
       ? employmentFormCheck?.summary
-      : leadAxisCandidate?.text || employmentFormCheck?.summary || buildPreviewInterpretation({ reliabilityGate, shortReasons, fiveAxes }))
+      : leadRisk?.summary || leadAxisCandidate?.text || employmentFormCheck?.summary || buildPreviewInterpretation({ reliabilityGate, shortReasons, fiveAxes }))
   const leadSupportText = buildSupportPreviewText(leadAxisCandidate)
   const secondarySupportText = buildSupportPreviewText(supportAxisCandidate)
   const hasRiskFocusAxis = focusAxes.some((axis) => axis?.level === 'risk')
@@ -2621,6 +2890,7 @@ function buildFreePreview({ structured, jobFamily, fiveAxes, criteria, criteriaM
   const quoteCandidates = [
     gateQuote,
     shouldUseEmploymentAsLead ? (employmentFormCheck?.evidence?.quote || '') : (leadAxisCandidate?.quote || ''),
+    leadRisk?.quote || '',
     supportAxisCandidate?.quote || '',
     isRepresentativeEvidenceNoiseLine(riskyAxisQuote) ? '' : riskyAxisQuote,
     preferredEvidence?.text || '',
@@ -2629,15 +2899,18 @@ function buildFreePreview({ structured, jobFamily, fiveAxes, criteria, criteriaM
     riskyAxisQuote,
   ].filter(Boolean)
   const quote = quoteCandidates[0] || ''
-  const freePreviewReasons = supportReason ? [supportReason] : []
+  const freePreviewReasons = [
+    ...(leadRisk?.supportReasons || []),
+    ...(supportReason ? [supportReason] : []),
+  ].filter((reason, index, items) => items.findIndex((item) => isPreviewTextNearDuplicate(item, reason)) === index)
   const headline =
     !reliabilityGate.primarySignal && employmentFormCheck
       ? '계약 조건과 실제 역할 범위를 먼저 확인해야 합니다. 지원 전에 면접에서 확인할 포인트를 먼저 보세요.'
-      : buildPreviewHeadlineWithPrompt({ risk, jobFamily, fiveAxes, reliabilityGate })
+      : buildPreviewHeadlineWithPrompt({ risk, jobFamily, fiveAxes, reliabilityGate, leadRisk })
   const verificationQuestion =
     !reliabilityGate.primarySignal && employmentFormCheck?.question
       ? employmentFormCheck.question
-      : roleQuestion
+      : leadRisk?.verificationQuestion || roleQuestion
 
   return {
     riskLevel: risk,
@@ -2650,7 +2923,7 @@ function buildFreePreview({ structured, jobFamily, fiveAxes, criteria, criteriaM
         ? whyImportant
         : '공고 표현이 추상적이라, 핵심 근거는 면접 답변으로 확인해야 합니다.',
     },
-    shortReasons: freePreviewReasons,
+    shortReasons: freePreviewReasons.slice(0, 2),
     verificationQuestion: reliabilityGate.primarySignal?.question || verificationQuestion,
     structuredSummary: {
       jobTitle: structured.jobTitle,
@@ -2668,7 +2941,93 @@ function createQuestionTemplate(question, goodAnswerSignal, riskyAnswerSignal, m
     riskyAnswerSignal,
     ...(meta.category ? { category: meta.category } : {}),
     ...(meta.whyAsk ? { whyAsk: meta.whyAsk } : {}),
+    ...(meta.answerDecisionHint ? { answerDecisionHint: meta.answerDecisionHint } : {}),
   }
+}
+
+function inferQuestionCategoryFromText(question = '') {
+  const text = String(question || '')
+
+  if (/(성과|지표|KPI|ROAS|CAC|CVR|전환율|매출|리포트|평가)/i.test(text)) return 'measurable'
+  if (/(결정|권한|책임|우선순위|승인|직접 .*참여|직접 .*결정)/i.test(text)) return 'responsibility'
+  if (/(운영|반복|실행|유지보수|처리|비중)/i.test(text)) return 'repetition'
+  if (/(이력서|포트폴리오|결과물|다음 이직|남는 경험|자산)/i.test(text)) return 'transferable'
+  if (/(6개월|1년 뒤|성장 경로|더 어려운 문제|확장|난이도)/i.test(text)) return 'difficulty'
+  if (/(리뷰|피드백|회고|실험|A\/B|학습)/i.test(text)) return 'learningFeedback'
+  if (/(핵심 업무|부수 업무|잡무|역할 범위|경계)/i.test(text)) return 'scopeClarity'
+  return 'responsibility'
+}
+
+function buildQuestionSignalsByCategory(category, jobFamily = null) {
+  const marketingLike = ['marketing', 'media'].includes(jobFamily?.id)
+
+  const baseMap = {
+    responsibility: {
+      goodAnswerSignal: marketingLike
+        ? '직접 책임지는 KPI, 승인 구조, 예산·채널 실험 권한을 실제 사례와 함께 설명합니다.'
+        : '직접 결정하는 범위, 승인 구조, 책임 기준을 실제 사례와 함께 설명합니다.',
+      riskyAnswerSignal: marketingLike
+        ? '전략 문구는 있지만 실제 결정은 윗선이 하고 본인은 실행만 맡는다고 답합니다.'
+        : '결정은 다른 사람이 하고 본인은 실행이나 조율만 맡는다고 답합니다.',
+    },
+    measurable: {
+      goodAnswerSignal: marketingLike
+        ? 'ROAS, CVR, 매출, 리텐션 같은 지표와 리뷰 주기를 구체적으로 설명합니다.'
+        : 'KPI, 평가 기준, 결과 보고 방식과 리뷰 주기를 구체적으로 설명합니다.',
+      riskyAnswerSignal: marketingLike
+        ? '성과 보고는 하지만 어떤 지표를 직접 책임지는지는 끝까지 모호하게 답합니다.'
+        : '결과는 본다고 하지만 어떤 수치나 기준으로 평가하는지는 모호하게 답합니다.',
+    },
+    repetition: {
+      goodAnswerSignal: marketingLike
+        ? '운영 업무와 실험·개선 업무 비중을 숫자나 최근 캠페인 사례로 설명합니다.'
+        : '반복 업무와 개선 업무 비중을 숫자와 실제 사례로 구체적으로 설명합니다.',
+      riskyAnswerSignal: marketingLike
+        ? '콘텐츠 업로드나 채널 운영 비중은 큰데 개선 과제나 ownership은 흐리게 답합니다.'
+        : '반복 처리 비중은 큰데 개선 기회나 ownership은 흐리게 답합니다.',
+    },
+    transferable: {
+      goodAnswerSignal: '외부에서도 설명 가능한 프로젝트, 결과물, 개선 사례와 본인 기여 범위를 구체적으로 설명합니다.',
+      riskyAnswerSignal: '내부 조율과 요청 처리 위주라서 다음 이직에서 설명할 결과물이 뚜렷하지 않다고 답합니다.',
+    },
+    difficulty: {
+      goodAnswerSignal: '처음 역할과 이후 확장되는 책임, 더 어려운 문제의 예시를 구체적으로 설명합니다.',
+      riskyAnswerSignal: '입사 후에도 비슷한 난이도의 반복 업무가 이어진다고 답합니다.',
+    },
+    learningFeedback: {
+      goodAnswerSignal: '리뷰 주기, 피드백 주체, 회고나 실험을 다음 개선으로 연결하는 방식을 설명합니다.',
+      riskyAnswerSignal: '업무는 처리하지만 리뷰나 피드백 구조는 사실상 없다고 답합니다.',
+    },
+    scopeClarity: {
+      goodAnswerSignal: '핵심 업무, 부수 업무, 협업 범위와 본인 책임 경계를 구체적으로 설명합니다.',
+      riskyAnswerSignal: '여러 요청을 다 받지만 어디까지가 본업인지 경계를 명확히 설명하지 못합니다.',
+    },
+  }
+
+  return baseMap[category] || baseMap.responsibility
+}
+
+function buildAnswerDecisionHint(category, goodAnswerSignal, riskyAnswerSignal) {
+  const map = {
+    responsibility: '결정권과 승인 범위가 구체적이면 자산이 되고, 실행만 맡는 구조면 조건부 지원이나 보류에 가깝습니다.',
+    measurable: 'KPI와 리뷰 구조가 분명하면 안전 신호이고, 결과 기준이 흐리면 판단 불확실성이 커집니다.',
+    repetition: '운영 비중보다 개선 과제가 분명하면 자산이 되고, 반복 처리 위주면 물경력 위험이 커집니다.',
+    transferable: '외부에서도 설명 가능한 결과물이 남으면 좋고, 내부 조율만 남으면 이직 자산이 약해집니다.',
+    scopeClarity: '핵심 역할과 부수 업무 경계가 선명하면 좋고, 여러 잡무가 섞이면 보류 쪽으로 기웁니다.',
+    difficulty: '더 어려운 문제로 확장되는 구조면 좋고, 같은 일을 반복하면 성장성은 약해집니다.',
+    learningFeedback: '리뷰와 피드백 루프가 있으면 자산이 되고, 처리만 반복되면 성장 체감이 약해집니다.',
+    applicationSafety: '공식 채용 주체가 분명하면 진행 가능하고, 계약 주체가 흐리면 지원 전 검증이 먼저입니다.',
+    contractConsistency: '계약 구조가 명확하면 진행 가능하고, 소속과 보호 조건이 모호하면 보류가 안전합니다.',
+    workLocationClarity: '근무지와 보고 라인이 명확하면 진행 가능하고, 상주·이동 조건이 흐리면 먼저 확인해야 합니다.',
+    roleClarity: '실제 역할 레벨이 분명하면 좋고, 직급과 역할이 엇갈리면 면접 검증 전 확신하기 어렵습니다.',
+    compensationContract: '실질 처우가 계약서 기준으로 정리되면 좋고, 금액만 강조되면 실제 조건을 다시 봐야 합니다.',
+  }
+
+  if (map[category]) return map[category]
+  if (goodAnswerSignal && riskyAnswerSignal) {
+    return `답변이 구체적으로 ${goodAnswerSignal.replace(/\.$/, '')} 좋고, ${riskyAnswerSignal.replace(/\.$/, '')} 보수적으로 판단하는 편이 안전합니다.`
+  }
+  return '답변이 구체적일수록 진행 판단이 쉬워지고, 모호할수록 보수적으로 보는 편이 안전합니다.'
 }
 
 function buildQuestionReasonByCategory(category) {
@@ -2698,6 +3057,22 @@ function buildQuestionReasonByCategory(category) {
   }
 
   return map[category] || '면접에서 실제 역할, 책임, 권한, 성과 기준을 구체적으로 확인해야 합니다.'
+}
+
+function buildCriteriaQuestionTemplate(question, jobFamily) {
+  const category = inferQuestionCategoryFromText(question)
+  const signals = buildQuestionSignalsByCategory(category, jobFamily)
+
+  return createQuestionTemplate(
+    question,
+    signals.goodAnswerSignal,
+    signals.riskyAnswerSignal,
+    {
+      category,
+      whyAsk: buildQuestionReasonByCategory(category),
+      answerDecisionHint: buildAnswerDecisionHint(category, signals.goodAnswerSignal, signals.riskyAnswerSignal),
+    },
+  )
 }
 
 function buildCriteriaQuestions(criteria, jobFamily) {
@@ -2747,13 +3122,7 @@ function buildCriteriaQuestions(criteria, jobFamily) {
     ]
   }
 
-  return (criteria?.interviewQuestions || []).map((question) => ({
-    question,
-    goodAnswerSignal: '책임 범위, 성과 기준, 실제 업무 예시를 구체적으로 설명합니다.',
-    riskyAnswerSignal: '비중이나 권한을 흐리거나 반복/보조 업무만 설명합니다.',
-    category: 'responsibility',
-    whyAsk: buildQuestionReasonByCategory('responsibility'),
-  }))
+  return (criteria?.interviewQuestions || []).map((question) => buildCriteriaQuestionTemplate(question, jobFamily))
 }
 
 function buildDefaultQuestions(jobFamily) {
@@ -2991,10 +3360,26 @@ function fallbackDetail({ analysis }) {
   const defaultQuestions = buildDefaultQuestions(jobFamily)
   const prioritizedQuestions = selectedAxes.map((axis) => {
     if (axis.key === 'responsibility') {
+      if (jobFamily?.id === 'development') {
+        return createQuestionTemplate(
+          '이 포지션이 실제로 기술 선택과 아키텍처 의사결정에 참여하는 범위는 어디까지인가요?',
+          '기술 선택권, 설계 책임, 우선순위 결정 구조를 실제 사례와 함께 설명합니다.',
+          '결정은 다른 팀이 하고 본인은 구현만 한다거나, 가봐야 안다고 흐립니다.',
+          { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
+        )
+      }
+      if (jobFamily?.id === 'product') {
+        return createQuestionTemplate(
+          '이 역할의 의사결정 범위와 최종 승인권자는 누구인가요?',
+          '문제 정의, 우선순위 제안, 실험 설계 중 어디까지 직접 결정하고 누가 최종 승인하는지 설명합니다.',
+          '아이디어는 내지만 실제 결정은 항상 다른 팀이나 상위자만 한다고 답합니다.',
+          { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
+        )
+      }
       return createQuestionTemplate(
-        '이 역할에서 제가 직접 책임지는 KPI와 의사결정 범위는 어디까지인가요?',
-        'KPI, 승인 구조, 예산/채널/우선순위 결정 범위를 실제 사례와 함께 설명합니다.',
-        '결정은 윗선이나 타 부서가 하고 본인은 실행과 조율만 맡는다고 설명합니다.',
+        '이 역할에서 제가 직접 결정하거나 제안할 수 있는 범위는 어디까지인가요?',
+        '승인 구조와 함께 예산, 채널, 우선순위 중 직접 결정하거나 제안하는 범위를 실제 사례로 설명합니다.',
+        '전략 문구는 있지만 실제 결정은 윗선이 하고 본인은 실행과 조율만 맡는다고 답합니다.',
         { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
       )
     }
@@ -3046,12 +3431,19 @@ function fallbackDetail({ analysis }) {
       ),
     )
     supplementalQuestions.push(
-      createQuestionTemplate(
-        '이 역할에서 제가 직접 책임지는 KPI와 의사결정 범위는 어디까지인가요?',
-        'KPI, 승인 구조, 예산/채널/우선순위 결정 범위를 실제 사례와 함께 설명합니다.',
-        '결정은 윗선이나 타 부서가 하고 본인은 실행과 조율만 맡는다고 설명합니다.',
-        { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
-      ),
+      jobFamily?.id === 'development'
+        ? createQuestionTemplate(
+            '이 포지션이 실제로 기술 선택과 아키텍처 의사결정에 참여하는 범위는 어디까지인가요?',
+            '기술 선택권, 설계 책임, 우선순위 결정 구조를 실제 사례와 함께 설명합니다.',
+            '결정은 다른 팀이 하고 본인은 구현만 한다거나, 가봐야 안다고 흐립니다.',
+            { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
+          )
+        : createQuestionTemplate(
+            '이 역할에서 제가 직접 결정하거나 제안할 수 있는 범위는 어디까지인가요?',
+            '승인 구조와 함께 예산, 채널, 우선순위 중 직접 결정하거나 제안하는 범위를 실제 사례로 설명합니다.',
+            '전략 문구는 있지만 실제 결정은 윗선이 하고 본인은 실행과 조율만 맡는다고 답합니다.',
+            { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
+          ),
     )
   }
 
@@ -3116,11 +3508,12 @@ function fallbackDetail({ analysis }) {
   }
 }
 
-function filterInterviewQuestionsForDisplay(interviewQuestions = [], { auxiliaryChecks = [], structured = {}, detailJobFamily = null } = {}) {
+function filterInterviewQuestionsForDisplay(interviewQuestions = [], { auxiliaryChecks = [], structured = {}, detailJobFamily = null, coreRisks = [] } = {}) {
   const activeAuxiliaryKeys = new Set((auxiliaryChecks || []).map((item) => item.key))
   const sourceLines = structured?.lines || []
   const hasFreelanceContractSignal = sourceLines.some((line) => /(프리랜스|도급|용역)/i.test(line))
   const hasCompensationSignal = sourceLines.some((line) => /(월급여|월 급여|용역비|급여|보수)/i.test(line) && /(만원|원)/.test(line))
+  const riskAxisKeys = new Set((coreRisks || []).flatMap((item) => item?.sourceAxisKeys || []))
 
   return (interviewQuestions || []).filter((item) => {
     if (!item?.question) return false
@@ -3134,6 +3527,7 @@ function filterInterviewQuestionsForDisplay(interviewQuestions = [], { auxiliary
     if (detailJobFamily?.id === 'product' && /(파견|프리랜스|고객사 상주|회사 이메일|계약 주체)/i.test(item.question)) {
       return activeAuxiliaryKeys.has('applicationSafety') || activeAuxiliaryKeys.has('contractConsistency') || activeAuxiliaryKeys.has('workLocationClarity')
     }
+    if (riskAxisKeys.has('scopeClarity') && buildQuestionTopicSignature(item) === 'scope_breakdown') return true
     return true
   })
 }
@@ -3206,107 +3600,974 @@ function compactCompanyContext(companyContext) {
   }
 }
 
-function pickInterviewQuestionsForCompactDisplay(interviewQuestions = [], limit = 5) {
-  const base = interviewQuestions.slice(0, limit)
+function pickEvidenceQuoteSegment(value = '') {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  const lineCandidates = raw
+    .split(/\r?\n|•|·/)
+    .map((item) => item.replace(/^\s*[-*]\s*/, '').trim())
+    .filter(Boolean)
+
+  const line = lineCandidates.find((item) => item.length >= 12) || lineCandidates[0] || raw
+  return toSentenceLimitedText(line, 1) || line
+}
+
+function compactEvidenceQuote(value, maxLength = 120) {
+  const normalized = pickEvidenceQuoteSegment(value).replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  return toLengthLimitedText(normalized, maxLength)
+}
+
+function buildQuestionIntentFamilySignature(item = {}) {
+  const topic = buildQuestionTopicSignature(item)
+  if (topic === 'baseline_metrics') return 'baseline_metrics'
+  if (topic === 'kpi_evaluation' || topic === 'kpi_ownership') return 'kpi_metrics'
+  return topic
+}
+
+function pickInterviewQuestionsForCompactDisplay(interviewQuestions = [], limit = 5, coreRisks = []) {
+  const deduped = []
+  const topicSeen = new Set()
+
+  for (const item of interviewQuestions) {
+    const topic = coreRisks.length > 0 ? buildQuestionIntentFamilySignature(item) : buildQuestionTopicSignature(item)
+    if (topicSeen.has(topic)) continue
+    topicSeen.add(topic)
+    deduped.push(item)
+    if (deduped.length >= Math.max(limit + 2, 7)) break
+  }
+
+  const base = deduped.slice(0, limit)
+  const feedbackQuestion = deduped.find((item) => /(Head of Product|PM 피어 리뷰|시니어 피드백)/i.test(item?.question || ''))
+  if (feedbackQuestion && !base.some((item) => item?.question === feedbackQuestion.question) && limit >= 3) {
+    const adjusted = [...base.slice(0, Math.max(0, limit - 1)), feedbackQuestion]
+    return adjusted
+  }
+
   const hasCompensationQuestion = base.some((item) => item?.category === 'compensationContract')
   if (hasCompensationQuestion) return base
 
-  const compensationQuestion = interviewQuestions.find((item) => item?.category === 'compensationContract')
+  const compensationQuestion = deduped.find((item) => item?.category === 'compensationContract')
   if (!compensationQuestion) return base
+
+  const mustKeepScopeBreakdown =
+    coreRisks.some((risk) => risk.key === 'scope_breadth') &&
+    !base.some((item) => buildQuestionTopicSignature(item) === 'scope_breakdown')
+  if (mustKeepScopeBreakdown) {
+    const scopeQuestion = deduped.find((item) => buildQuestionTopicSignature(item) === 'scope_breakdown')
+    if (scopeQuestion) {
+      return [...base.slice(0, Math.max(0, limit - 1)), scopeQuestion]
+    }
+  }
 
   return [...base.slice(0, Math.max(0, limit - 1)), compensationQuestion]
 }
 
-function buildFallbackDisplayVerdict(detail) {
-  const auxiliaryChecks = detail?.auxiliaryChecks || []
-  const axes = detail?.sevenAxes || detail?.fiveAxes || []
-  const applicationSafety = auxiliaryChecks.find((item) => item.key === 'applicationSafety')
-  const contractConsistency = auxiliaryChecks.find((item) => item.key === 'contractConsistency')
-  const employmentForm = auxiliaryChecks.find((item) => item.key === 'employmentForm')
-  const riskCount = axes.filter((axis) => axis.level === 'risk').length
-  const mixedCount = axes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis.level)).length
-  const strongPositiveCount = axes.filter((axis) => axis.level === 'strong_positive').length
+function getDetailTone(level = '') {
+  if (['risk', 'high'].includes(level)) return 'danger'
+  if (['mixed_signal', 'positive_with_check', 'medium'].includes(level)) return 'warning'
+  if (level === 'insufficient_info') return 'neutral'
+  return 'safe'
+}
 
-  if (applicationSafety?.level === 'high' || contractConsistency?.level === 'high' || employmentForm?.level === 'high') {
+function getAxisDecisionMeta(axisKey) {
+  const map = {
+    repetition: {
+      missingTopic: '반복 운영과 개선 업무의 비중',
+      positiveSignal: '반복 업무를 개선·자동화·분석으로 연결하는 구조로 볼 여지가 있습니다.',
+      riskSignal: '반복 처리와 운영 비중이 크면 시간이 지나도 비슷한 일만 반복할 수 있습니다.',
+      careerLink: '운영 처리만 남으면 이직 때 설명할 개선 성과가 약해집니다.',
+      confirmPoint: '운영 비중과 개선 과제를 숫자나 최근 사례 기준으로 확인해야 합니다.',
+    },
+    responsibility: {
+      missingTopic: '결정권과 책임 범위',
+      positiveSignal: '전략 수립이나 우선순위 판단으로 이어질 수 있는 여지가 있습니다.',
+      riskSignal: '권한이 없으면 전략 문구가 있어도 실제로는 실행과 조율 역할에 머물 수 있습니다.',
+      careerLink: '판단 경험이 없으면 경력서에 주도 경험보다 지원 경험만 남기 쉽습니다.',
+      confirmPoint: '예산, 채널, 승인, 우선순위 중 직접 결정하는 범위를 확인해야 합니다.',
+    },
+    measurable: {
+      missingTopic: 'KPI와 평가 기준',
+      positiveSignal: '성과 분석이나 결과 관리 경험으로 이어질 가능성이 있습니다.',
+      riskSignal: '평가 기준이 없으면 일을 많이 해도 무엇을 만든 역할인지 설명하기 어려워집니다.',
+      careerLink: '숫자나 결과물이 남지 않으면 이직 때 경력 자산화가 약해집니다.',
+      confirmPoint: 'KPI, 리뷰 주기, 결과 보고 방식이 어떻게 잡혀 있는지 확인해야 합니다.',
+    },
+    difficulty: {
+      missingTopic: '시간이 갈수록 더 어려운 문제를 맡는 구조',
+      positiveSignal: '역할이 확장되면 더 큰 문제를 해결하는 경험으로 이어질 수 있습니다.',
+      riskSignal: '확장 구조가 없으면 같은 수준의 반복 업무에 머물 가능성이 있습니다.',
+      careerLink: '난이도 상승이 없으면 경력 연차에 비해 성장 폭이 작게 보일 수 있습니다.',
+      confirmPoint: '입사 후 책임 범위와 문제 난이도가 어떻게 커지는지 확인해야 합니다.',
+    },
+    transferable: {
+      missingTopic: '이직 때 설명 가능한 결과물과 범용 역량',
+      positiveSignal: '시장에서도 통하는 결과물과 방법론으로 남을 가능성이 있습니다.',
+      riskSignal: '내부 조율이나 회사 특화 운영만 남으면 다음 이직에서 설명력이 약합니다.',
+      careerLink: '범용 역량이 약하면 경력 연차가 쌓여도 시장 가치가 낮아질 수 있습니다.',
+      confirmPoint: '외부에서도 설명 가능한 프로젝트, 리포트, 개선 결과가 남는지 확인해야 합니다.',
+    },
+    scopeClarity: {
+      missingTopic: '핵심 역할과 부수 업무의 경계',
+      positiveSignal: '업무 범위가 하나의 전문성으로 수렴하면 경력 자산이 쌓이기 좋은 구조일 수 있습니다.',
+      riskSignal: '업무 범위가 넓고 경계가 흐리면 여러 운영 잡무가 한 역할에 섞일 가능성이 있습니다.',
+      careerLink: '전문성 대신 잡무 경험만 넓어지면 물경력으로 느껴질 가능성이 커집니다.',
+      confirmPoint: '핵심 업무와 요청성 보조 업무가 어디서 갈리는지 확인해야 합니다.',
+    },
+    learningFeedback: {
+      missingTopic: '성과 리뷰와 피드백 구조',
+      positiveSignal: '회고와 피드백이 있으면 일을 하며 더 나아지는 구조일 수 있습니다.',
+      riskSignal: '처리만 하고 끝나는 구조면 같은 실무를 반복해도 성장 체감이 약해집니다.',
+      careerLink: '학습 루프가 없으면 개선 경험 대신 단순 수행 경험만 남기 쉽습니다.',
+      confirmPoint: '리뷰 주기, 피드백 주체, 회고 방식이 있는지 확인해야 합니다.',
+    },
+  }
+
+  return (
+    map[axisKey] || {
+      missingTopic: '핵심 판단 정보',
+      positiveSignal: '경력 자산으로 이어질 수 있는 여지가 있습니다.',
+      riskSignal: '역할 수준을 설명할 근거가 부족하면 실제 경험 가치가 낮아질 수 있습니다.',
+      careerLink: '핵심 정보가 흐리면 이직 때 설명력이 약해질 수 있습니다.',
+      confirmPoint: '면접에서 실제 역할과 평가 기준을 확인해야 합니다.',
+    }
+  )
+}
+
+function buildAxisRiskInterpretation(axis) {
+  const meta = getAxisDecisionMeta(axis?.key)
+  const quote = String(axis?.evidence?.quote || '').trim()
+
+  if (quote) {
+    if (axis?.key === 'scopeClarity') {
+      if (axis?.level === 'risk' || axis?.level === 'mixed_signal' || axis?.level === 'positive_with_check') {
+        return `'${quote}' 문구는 업무 범위가 한 포지션에 넓게 묶여 있음을 보여줍니다. 넓은 범위를 경험한다는 장점은 있지만, 실제로는 ${meta.riskSignal.toLowerCase()} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+      }
+      if (axis?.level === 'insufficient_info') {
+        return `'${quote}' 문구는 역할 범위를 완전히 숨기진 않지만, 핵심 업무와 부수 업무의 경계는 여전히 직접 드러나지 않습니다. 실제로는 ${meta.riskSignal.toLowerCase()} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+      }
+    }
+    if (axis?.level === 'risk') {
+      return `공고의 '${quote}' 문구는 ${meta.riskSignal} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+    }
+    if (axis?.level === 'insufficient_info') {
+      return `'${quote}' 문구는 ${meta.positiveSignal} 다만 ${meta.missingTopic}가 직접 드러나지 않아 ${meta.riskSignal.toLowerCase()} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+    }
+    if (axis?.level === 'mixed_signal' || axis?.level === 'positive_with_check') {
+      return `'${quote}' 문구는 ${meta.positiveSignal} 다만 동시에 ${meta.riskSignal.toLowerCase()} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+    }
+    return `'${quote}' 문구는 ${meta.positiveSignal} 다만 과장 해석은 피하고 ${meta.confirmPoint}`
+  }
+
+  return `공고에는 ${meta.missingTopic}를 직접 보여주는 문구가 거의 없습니다. 그래서 ${meta.positiveSignal.toLowerCase()} 실제로는 ${meta.riskSignal.toLowerCase()} ${meta.careerLink} 따라서 ${meta.confirmPoint}`
+}
+
+function buildAxisDecisionMeaning(axis) {
+  const meta = getAxisDecisionMeta(axis?.key)
+  if (axis?.level === 'risk') return `이 축은 현재 지원 판단을 보수적으로 낮추는 직접 위험 신호입니다. ${meta.confirmPoint}`
+  if (axis?.level === 'insufficient_info') return `이 축은 위험 확정이 아니라 판단 불확실성을 키우는 정보 공백입니다. ${meta.confirmPoint}`
+  if (axis?.level === 'mixed_signal' || axis?.level === 'positive_with_check') return `이 축은 긍정 가능성과 위험 가능성이 함께 있어 조건부 지원 여부를 가르는 기준입니다. ${meta.confirmPoint}`
+  return `이 축은 비교적 긍정 신호가 보이지만 최종 판단 전 ${meta.confirmPoint}`
+}
+
+function dedupeTextItems(items = [], selector = (item) => item) {
+  const seen = new Set()
+  return items.filter((item) => {
+    const value = String(selector(item) || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!value || seen.has(value)) return false
+    seen.add(value)
+    return true
+  })
+}
+
+function buildCoreRiskItem({ key, title, summary, whyRisk, questionToVerify, severity = 'medium', sourceAxisKeys = [] }) {
+  return {
+    key,
+    title,
+    summary,
+    whyRisk,
+    questionToVerify,
+    severity,
+    sourceAxisKeys,
+  }
+}
+
+function buildDecisionStance(coreRisks = [], reliabilityGate = null) {
+  if (reliabilityGate?.criticalCount >= 1) {
     return {
-      riskLevel: 'high',
-      label: '검증 전 지원 보류',
-      description: '지원 전에 계약 주체, 공식 제출 경로, 고용 형태를 먼저 확인해야 합니다.',
-      tone: 'danger',
+      decisionLevel: 'hold_before_apply',
+      headline: '검증 전 지원 보류',
+      recommendedAction: 'hold_before_apply',
+      reason:
+        '공식 채용 주체와 계약 안전성부터 검증해야 합니다. 회사 확인과 계약 조건이 정리되기 전에는 지원 판단을 보류하는 편이 안전합니다.',
     }
   }
 
-  if (riskCount >= 2) {
+  const keys = new Set(coreRisks.map((risk) => risk.key))
+
+  if (keys.has('scope_breadth') && keys.has('authority_gap')) {
     return {
-      riskLevel: 'high',
-      label: '위험',
-      description: '물경력 위험 신호가 비교적 강하게 보여, 지원 전에 핵심 조건을 먼저 확인해야 합니다.',
-      tone: 'danger',
+      decisionLevel: 'hold_before_apply',
+      headline: '확인 전 보류 권장',
+      recommendedAction: 'hold_before_apply',
+      reason:
+        '업무 범위와 결정권 답변이 분명할 때만 지원 검토 쪽으로 보고, 둘 다 모호하면 운영형 제너럴리스트 역할일 가능성을 더 크게 봐야 합니다.',
     }
   }
 
-  if (riskCount >= 1 || mixedCount >= 1 || applicationSafety?.level === 'medium') {
+  if (keys.has('scope_breadth') || keys.has('authority_gap') || keys.has('kpi_gap')) {
     return {
-      riskLevel: 'medium',
-      label: '추가 확인 필요',
-      description: '좋아 보이는 표현은 있지만, 실제 권한과 성과 기준은 면접에서 확인이 필요합니다.',
-      tone: 'warning',
+      decisionLevel: 'conditional_apply',
+      headline: '조건부 지원 가능',
+      recommendedAction: 'check_before_apply',
+      reason:
+        '업무 범위, KPI, 결정권 답변이 분명할 때만 지원 쪽으로 보고, 답변이 모호하면 운영형 제너럴리스트 역할로 남을 가능성을 보수적으로 봐야 합니다.',
     }
   }
 
-  if (strongPositiveCount >= 2) {
+  if (keys.has('ops_mix')) {
     return {
-      riskLevel: 'low',
-      label: '좋음',
-      description: '현재 공고만 보면 물경력 위험은 낮아 보입니다.',
-      tone: 'safe',
+      decisionLevel: 'ops_risk_caution',
+      headline: '운영형 물경력 위험 주의',
+      recommendedAction: 'check_before_apply',
+      reason:
+        '운영 비중과 개선 과제의 실제 비중을 먼저 확인하고, 반복 처리 위주라면 지원을 보수적으로 판단하는 편이 안전합니다.',
     }
   }
 
   return {
-    riskLevel: 'needs_review',
-    label: '추가 확인 필요',
-    description: '공고만으로는 단정 근거가 부족해, 면접에서 역할과 성과 구조를 먼저 확인해야 합니다.',
-    tone: 'warning',
+    decisionLevel: 'verification_needed',
+    headline: '추가 확인 필요',
+    recommendedAction: 'check_before_apply',
+    reason: '핵심 역할, KPI, 결정권 범위를 먼저 확인한 뒤 지원 판단을 내리는 편이 안전합니다.',
+  }
+}
+
+function buildConfidenceReason(axes = [], auxiliaryChecks = []) {
+  const insufficientCount = axes.filter((axis) => axis?.level === 'insufficient_info').length
+  const dangerCount = axes.filter((axis) => getDetailTone(axis?.level) === 'danger').length
+  const warningAuxCount = auxiliaryChecks.filter((item) => getDetailTone(item?.level) === 'warning').length
+  const safeCount = axes.filter((axis) => getDetailTone(axis?.level) === 'safe').length
+
+  if (insufficientCount >= 3) {
+    return 'KPI, 결정권, 업무 비중처럼 지원 판단에 중요한 근거가 여러 축에서 비어 있어 신뢰도가 낮습니다.'
+  }
+  if (dangerCount >= 2) {
+    return '직접 위험 신호는 보이지만, 그 강도를 더 뒷받침할 근거가 있으면 판단 신뢰도가 더 높아집니다.'
+  }
+  if (warningAuxCount >= 1 && insufficientCount >= 1) {
+    return '고용형태나 운영 구조 확인 포인트가 남아 있어, 면접 전까지는 이 점수를 보수적으로 읽는 편이 안전합니다.'
+  }
+  if (safeCount >= 3) {
+    return 'KPI, 역할 범위, 성과 축적 구조를 보여주는 근거가 비교적 구체적이라 점수 신뢰도가 높은 편입니다.'
+  }
+  return '근거가 구체적일수록 점수의 신뢰도가 높습니다.'
+}
+
+function buildCoreRisks(detail = {}, structured = {}) {
+  const sevenAxes = detail?.sevenAxes || []
+  const axisByKey = new Map(sevenAxes.map((axis) => [axis?.key, axis]))
+  const sourceLines = structured?.lines || []
+  const jobFamilyId = detail?.jobFamily?.id || structured?.jobFamily?.id || 'unknown'
+  const scopeAxis = axisByKey.get('scopeClarity')
+  const responsibilityAxis = axisByKey.get('responsibility')
+  const measurableAxis = axisByKey.get('measurable')
+  const repetitionAxis = axisByKey.get('repetition')
+
+  const marketingBreadthQuote =
+    findRawLine(
+      sourceLines,
+      (line) =>
+        countDistinctKeywordHits(line, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 3,
+    ) || scopeAxis?.evidence?.quote || ''
+  const hasMarketingBreadthSignal = countDistinctKeywordHits(marketingBreadthQuote, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 3
+  const strategyWithoutAuthorityQuote =
+    findRawLine(sourceLines, (line) => /(전략 수립|마케팅 전략|캠페인 기획|브랜드 전략)/i.test(line) && !/(예산|권한|승인|의사결정|오너십)/i.test(line)) ||
+    responsibilityAxis?.evidence?.quote ||
+    ''
+  const metricsWithoutOwnershipQuote =
+    findRawLine(sourceLines, (line) => /(성과 분석|데이터 분석|리포트|매출|roas|cvr|리텐션|전환율)/i.test(line) && !/(kpi|평가|책임|직접 책임)/i.test(line)) ||
+    measurableAxis?.evidence?.quote ||
+    ''
+
+  const risks = []
+
+  if (
+    (jobFamilyId === 'marketing' && scopeAxis && ['risk', 'mixed_signal', 'positive_with_check'].includes(scopeAxis.level)) ||
+    hasMarketingBreadthSignal
+  ) {
+    risks.push(
+      buildCoreRiskItem({
+        key: 'scope_breadth',
+        title: '업무 범위 과다와 역할 경계 모호',
+        summary: '자사몰, CRM, 콘텐츠, 프로모션, 라이브커머스 같은 하위 업무가 한 포지션에 묶여 있어 핵심 전문성보다 운영 범위만 넓게 남을 가능성이 있습니다.',
+        whyRisk: '핵심 문제는 일이 많다는 점보다 경계가 흐리다는 점입니다. 팀 구조가 약하면 여러 운영 업무를 우선순위 없이 넓게 떠안는 운영형 제너럴리스트 역할이 될 수 있습니다.',
+        questionToVerify: '자사몰, 인플루언서, CRM, 콘텐츠, 라이브커머스 중 실제 주 업무는 무엇이고 각 업무 비중은 어떻게 나뉘나요?',
+        severity: scopeAxis?.level === 'risk' ? 'high' : 'medium',
+        sourceAxisKeys: ['scopeClarity', 'repetition'],
+      }),
+    )
+  }
+
+  if (
+    responsibilityAxis &&
+    ['insufficient_info', 'positive_with_check', 'mixed_signal'].includes(responsibilityAxis.level) &&
+    (jobFamilyId === 'marketing' ||
+      scopeAxis?.level === 'risk' ||
+      /(전략|기획)/i.test(strategyWithoutAuthorityQuote))
+  ) {
+    risks.push(
+      buildCoreRiskItem({
+        key: 'authority_gap',
+        title: '전략 권한 불명확',
+        summary: '전략이나 기획 문구는 보이지만, 예산·채널·우선순위 같은 실제 결정권이 드러나지 않아 실행 중심 역할일 가능성을 배제하기 어렵습니다.',
+        whyRisk: '전략이라는 표현보다 중요한 것은 무엇을 직접 정하느냐입니다. 승인권과 우선순위 결정권이 없으면 전략 경험보다 실행과 조율 경험만 남을 수 있습니다.',
+        questionToVerify: '예산, 채널, 프로모션, 우선순위 중 제가 직접 결정하거나 제안할 수 있는 범위는 어디까지인가요?',
+        severity: responsibilityAxis?.level === 'mixed_signal' ? 'medium' : 'medium',
+        sourceAxisKeys: ['responsibility'],
+      }),
+    )
+  }
+
+  if (
+    measurableAxis &&
+    ['insufficient_info', 'positive_with_check', 'mixed_signal'].includes(measurableAxis.level) &&
+    (jobFamilyId === 'marketing' || scopeAxis?.level === 'risk' || repetitionAxis?.level === 'risk')
+  ) {
+    risks.push(
+      buildCoreRiskItem({
+        key: 'kpi_gap',
+        title: 'KPI와 성과 책임 범위 불명확',
+        summary: '성과 분석 문구는 보이지만, ROAS·CVR·매출·리텐션 중 무엇을 직접 책임지는지는 아직 불분명합니다.',
+        whyRisk: '성과 분석을 한다는 말만으로는 부족합니다. 직접 책임지는 지표와 리뷰 기준이 흐리면, 입사 후 성과가 숫자나 대표 산출물로 남기 어렵습니다.',
+        questionToVerify:
+          jobFamilyId === 'marketing'
+            ? '이 역할의 성과는 ROAS, CVR, 매출, 리텐션 같은 어떤 지표나 결과물로 평가하나요?'
+            : '이 역할의 성과는 어떤 지표나 결과물로 평가하나요?',
+        severity: measurableAxis?.level === 'insufficient_info' ? 'medium' : 'medium',
+        sourceAxisKeys: ['measurable'],
+      }),
+    )
+  }
+
+  if (repetitionAxis && ['risk', 'positive_with_check', 'mixed_signal'].includes(repetitionAxis.level)) {
+    risks.push(
+      buildCoreRiskItem({
+        key: 'ops_mix',
+        title: '운영 비중이 전략 경험을 덮을 가능성',
+        summary: '분석과 개선 문구가 일부 있어도 운영성 업무 비중이 더 크면, 시간이 지나도 비슷한 실행 업무가 반복될 가능성이 있습니다.',
+        whyRisk: '이 경우 핵심 리스크는 단순 반복이 아니라 비중입니다. 개선 과제가 부수적이면 경력 자산은 전략보다 운영 제너럴리스트 경험으로 남을 가능성이 큽니다.',
+        questionToVerify: '운영 업무와 실험·개선 업무의 비중은 실제로 어느 정도인가요?',
+        severity: repetitionAxis?.level === 'risk' ? 'high' : 'medium',
+        sourceAxisKeys: ['repetition'],
+      }),
+    )
+  }
+
+  const priority = {
+    scope_breadth: 0,
+    authority_gap: 1,
+    kpi_gap: 2,
+    ops_mix: 3,
+  }
+
+  return dedupeTextItems(
+    risks.sort((a, b) => (priority[a.key] ?? 99) - (priority[b.key] ?? 99)).slice(0, 3),
+    (item) => item.key,
+  )
+}
+
+function buildCoreRiskQuestions(coreRisks = []) {
+  return coreRisks.map((risk) => {
+    if (risk.key === 'scope_breadth') {
+      return createQuestionTemplate(
+        risk.questionToVerify,
+        '주 업무와 보조 업무를 나눠 설명하고, 각 업무 비중을 숫자나 최근 사례 기준으로 말합니다.',
+        '상황에 따라 전반적으로 다 맡는다고만 하거나 핵심 업무 비중을 명확히 답하지 못합니다.',
+        { category: 'scopeClarity', whyAsk: buildQuestionReasonByCategory('scopeClarity') },
+      )
+    }
+    if (risk.key === 'authority_gap') {
+      return createQuestionTemplate(
+        risk.questionToVerify,
+        '예산·채널·우선순위처럼 직접 결정하거나 제안하는 범위를 실제 사례와 함께 설명합니다.',
+        '전략 문구는 있지만 실제 결정은 윗선이 하고 본인은 실행만 맡는다고 답합니다.',
+        { category: 'responsibility', whyAsk: buildQuestionReasonByCategory('responsibility') },
+      )
+    }
+    if (risk.key === 'kpi_gap') {
+      return createQuestionTemplate(
+        risk.questionToVerify,
+        '직접 책임지는 지표와 함께 리뷰 주기, 보고 방식, 목표 수치를 실제 사례 기준으로 설명합니다.',
+        '성과 분석은 하지만 어떤 지표를 본인이 직접 책임지는지는 아직 정해지지 않았다고 답합니다.',
+        { category: 'measurable', whyAsk: buildQuestionReasonByCategory('measurable') },
+      )
+    }
+    return createQuestionTemplate(
+      '실행 운영과 기획·개선 업무의 비중은 실제로 어느 정도인가요?',
+      '운영 비중과 개선 과제를 숫자나 최근 프로젝트 기준으로 구체적으로 설명합니다.',
+      '운영이 대부분이지만 개선 기회나 ownership은 모호하다고 답합니다.',
+      { category: 'repetition', whyAsk: buildQuestionReasonByCategory('repetition') },
+    )
+  })
+}
+
+function buildQuestionTopicSignature(item = {}) {
+  const text = `${item?.category || ''} ${item?.question || ''}`.toLowerCase()
+  if (item?.category === 'scopeClarity') return 'scope_breakdown'
+  if (item?.category === 'responsibility') return 'decision_authority'
+  if (item?.category === 'repetition') return 'ops_vs_improvement'
+  if (item?.category === 'measurable') {
+    if (/(기준선|3개월|6개월)/i.test(text)) return 'baseline_metrics'
+    if (/(직접 책임지는|책임지는 항목|책임지는 지표)/i.test(text)) return 'kpi_ownership'
+    return 'kpi_evaluation'
+  }
+  if (/(자사몰|crm|인플루언서|라이브커머스|콘텐츠).*(비중|주 업무)|주 업무.*(자사몰|crm|인플루언서|라이브커머스|콘텐츠)/i.test(text)) return 'scope_breakdown'
+  if (/(kpi|roas|cvr|매출|리텐션|성과|평가)/i.test(text)) return 'kpi_metrics'
+  if (/(예산|채널|승인|우선순위|의사결정|권한)/i.test(text)) return 'decision_authority'
+  if (/(운영).*(개선|전략|기획|실험|비중)|(개선|전략|기획|실험).*(운영|비중)/i.test(text)) return 'ops_vs_improvement'
+  return item?.category || inferQuestionCategoryFromText(item?.question || '')
+}
+
+function prioritizeInterviewQuestionsForCoreRisks(interviewQuestions = [], coreRisks = []) {
+  const priorityMap = new Map()
+  coreRisks.forEach((risk, index) => {
+    for (const key of risk.sourceAxisKeys || []) {
+      if (!priorityMap.has(key)) priorityMap.set(key, index)
+    }
+  })
+
+  return [...interviewQuestions].sort((a, b) => {
+    const topicA = buildQuestionTopicSignature(a)
+    const topicB = buildQuestionTopicSignature(b)
+    const scoreA = priorityMap.has(a?.category) ? priorityMap.get(a.category) : priorityMap.has(topicA) ? priorityMap.get(topicA) : 99
+    const scoreB = priorityMap.has(b?.category) ? priorityMap.get(b.category) : priorityMap.has(topicB) ? priorityMap.get(topicB) : 99
+    if (scoreA !== scoreB) return scoreA - scoreB
+    return 0
+  })
+}
+
+function buildActionGuideFromCoreRisks(coreRisks = [], reliabilityGate = null) {
+  return buildDecisionStance(coreRisks, reliabilityGate).reason
+}
+
+function buildVerdictMessagingFromCoreRisks(coreRisks = [], reliabilityGate = null) {
+  if (!coreRisks.length) return null
+
+  const stance = buildDecisionStance(coreRisks, reliabilityGate)
+
+  const hasScope = coreRisks.some((item) => item.key === 'scope_breadth')
+  const hasKpi = coreRisks.some((item) => item.key === 'kpi_gap')
+  let description = coreRisks[0]?.summary || ''
+  if (stance.decisionLevel === 'hold_before_apply') {
+    description = '업무 범위와 결정권이 동시에 모호하면 실행보다 운영 조율 경험만 남을 가능성이 있어, 확인 전에는 보류 쪽으로 보는 편이 안전합니다.'
+  } else if (stance.decisionLevel === 'conditional_apply') {
+    description = '지원 자체를 바로 배제할 단계는 아니지만, 업무 범위와 KPI 구조가 분명한지 먼저 확인해야 합니다.'
+  } else if (stance.decisionLevel === 'ops_risk_caution') {
+    description = '분석·개선 문구가 일부 있어도 운영 비중이 더 크면 전략 경험보다 운영 경험만 넓게 남을 수 있습니다.'
+  } else if (hasScope) {
+    description = '업무 범위가 넓게 묶여 있어 성장 기회일 수도 있지만, 핵심 전문성보다 운영 범위만 넓게 남을 가능성을 먼저 확인해야 합니다.'
+  } else if (hasKpi) {
+    description = '성과 분석 문구는 보이지만 직접 책임지는 지표가 흐려, 지원 전 KPI 구조를 먼저 확인하는 편이 안전합니다.'
+  }
+  const reason = coreRisks.slice(0, 2).map((item) => item.whyRisk).join(' ')
+
+  return {
+    headline: stance.headline,
+    decisionLevel: stance.decisionLevel,
+    description: toLengthLimitedText(toSentenceLimitedText(description, 1), 120),
+    reason: toLengthLimitedText(toSentenceLimitedText(reason, 2), 180),
+  }
+}
+
+function enrichAxesForDecision(detail = {}) {
+  const enrich = (axis) => ({
+    ...axis,
+    riskInterpretation: buildAxisRiskInterpretation(axis),
+    decisionMeaning: buildAxisDecisionMeaning(axis),
+  })
+
+  const sevenAxes = (detail?.sevenAxes || []).map(enrich)
+  const fiveAxes = (detail?.fiveAxes || buildFiveAxesFromSevenAxes(sevenAxes)).map(enrich)
+  return { ...detail, sevenAxes, fiveAxes }
+}
+
+function buildTopDecisionRisks(axes = [], auxiliaryChecks = [], coreRisks = []) {
+  if (coreRisks.length > 0) {
+    return coreRisks.slice(0, 3).map((risk) => ({
+      key: risk.key,
+      label: risk.title,
+      score: risk.severity === 'high' ? 100 : 80,
+      summary: risk.summary,
+      evidenceQuote: '',
+      reason: risk.whyRisk,
+    }))
+  }
+
+  const coreWeights = {
+    measurable: 5,
+    responsibility: 5,
+    scopeClarity: 4,
+    repetition: 4,
+    transferable: 4,
+    difficulty: 3,
+    learningFeedback: 3,
+  }
+
+  const axisItems = (axes || [])
+    .map((axis) => {
+      const normalizedTone = getDetailTone(axis?.level)
+      const base =
+        normalizedTone === 'danger' ? 100 : normalizedTone === 'warning' ? 75 : axis?.level === 'insufficient_info' ? 60 : normalizedTone === 'neutral' ? 45 : 15
+      const weight = coreWeights[axis?.key] || 1
+      return {
+        key: axis?.key,
+        label: axis?.label || '핵심 축',
+        score: base + weight,
+        summary: axis?.summary || '',
+        evidenceQuote: axis?.evidence?.quote || '',
+        reason: axis?.decisionMeaning || '',
+      }
+    })
+    .filter((item) => item.score >= 50)
+
+  const auxiliaryItems = (auxiliaryChecks || [])
+    .filter((item) => ['danger', 'warning'].includes(getDetailTone(item?.level)))
+    .map((item) => ({
+      key: item?.key,
+      label: item?.label || '보조 체크',
+      score: getDetailTone(item?.level) === 'danger' ? 58 : 52,
+      summary: item?.summary || '',
+      evidenceQuote: item?.evidence?.quote || '',
+      reason: '보조 체크 항목이므로 핵심 축보다 우선하지 않지만, 실제 지원 안전성에는 영향을 줍니다.',
+    }))
+
+  return [...axisItems, ...auxiliaryItems]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+}
+
+function buildFallbackDisplayVerdict(detail) {
+  const axes = detail?.fiveAxes || detail?.sevenAxes || []
+  const auxiliaryChecks = detail?.auxiliaryChecks || []
+  const coreRisks = detail?.coreRisks || []
+  const coreKeys = ['measurable', 'responsibility', 'scopeClarity', 'repetition', 'transferable']
+  const coreAxes = axes.filter((axis) => coreKeys.includes(axis?.key))
+  const riskCoreCount = coreAxes.filter((axis) => axis?.level === 'risk').length
+  const infoGapCoreCount = coreAxes.filter((axis) => axis?.level === 'insufficient_info').length
+  const mixedCoreCount = coreAxes.filter((axis) => ['mixed_signal', 'positive_with_check'].includes(axis?.level)).length
+  const safeCoreCount = coreAxes.filter((axis) => axis?.level === 'strong_positive').length
+  const blockingAuxiliary = auxiliaryChecks.filter((item) => getDetailTone(item?.level) === 'danger').length
+  const topDecisionRisks = buildTopDecisionRisks(detail?.sevenAxes || axes, auxiliaryChecks, coreRisks)
+
+  let riskLevel = 'needs_review'
+  let label = '조건부 지원 추천'
+  let tone = 'warning'
+  let description = '긍정 신호는 있지만 핵심 정보 공백이 남아 있어, 면접 답변으로 역할 수준을 검증해야 합니다.'
+  let reason = '핵심 축에 정보 공백이 남아 있어 지원 판단을 바로 확정하기 어렵습니다.'
+
+  if (blockingAuxiliary > 0 || riskCoreCount >= 2) {
+    riskLevel = 'high'
+    label = '위험 신호 높음'
+    tone = 'danger'
+    description = '반복 운영, 권한 부재, 성과 불명확 같은 직접 위험 신호가 겹쳐 보여 보수적으로 보는 편이 안전합니다.'
+    reason = '핵심 축에서 직접 부정 신호가 복수로 확인돼 면접 전 기대보다 실제 역할이 좁을 가능성이 큽니다.'
+  } else if (riskCoreCount >= 1 && infoGapCoreCount >= 1) {
+    riskLevel = 'medium'
+    label = '보류 권장'
+    tone = 'warning'
+    description = '직접 위험 신호와 핵심 정보 공백이 함께 있어, 답변이 명확하지 않으면 보류 쪽으로 보는 편이 안전합니다.'
+    reason = '부정 신호가 이미 보이고 동시에 핵심 정보도 비어 있어, 실제 역할 수준을 확신하기 어렵습니다.'
+  } else if (infoGapCoreCount >= 3 || (infoGapCoreCount >= 2 && mixedCoreCount >= 1)) {
+    riskLevel = 'medium'
+    label = '조건부 지원 추천'
+    tone = 'warning'
+    description = '공고에 직접 위험 문구가 많지는 않지만, KPI·권한·역할 범위 같은 핵심 정보가 반복적으로 비어 있습니다.'
+    reason = '정보 없음 자체가 위험은 아니지만, 핵심 축 공백이 겹치면 면접 검증 전에는 역할 가치를 판단하기 어렵습니다.'
+  } else if (safeCoreCount >= 3 && riskCoreCount === 0) {
+    riskLevel = 'low'
+    label = '지원 추천'
+    tone = 'safe'
+    description = 'KPI, 역할 범위, 성과 축적 가능성에서 비교적 분명한 긍정 신호가 보여 지원해 볼 만합니다.'
+    reason = '핵심 축에서 긍정 근거가 비교적 뚜렷하고, 직접 위험 신호는 제한적입니다.'
+  }
+
+  const coreRiskMessaging = buildVerdictMessagingFromCoreRisks(coreRisks)
+  if (coreRiskMessaging) {
+    description = coreRiskMessaging.description || description
+    reason = coreRiskMessaging.reason || reason
+  }
+
+  return {
+    riskLevel,
+    label,
+    description,
+    tone,
+    reason,
+    topDecisionRisks,
   }
 }
 
 function buildDisplayVerdict({ freePreview, detail }) {
-  if (!freePreview?.riskLevel) return buildFallbackDisplayVerdict(detail)
+  const weightedVerdict = buildFallbackDisplayVerdict(detail)
+  if (!freePreview?.riskLevel) return weightedVerdict
 
-  const riskLevel = freePreview.riskLevel
-  const tone = riskLevel === 'high' ? 'danger' : riskLevel === 'low' ? 'safe' : 'warning'
+  if (freePreview.riskLevel === 'high' && weightedVerdict.riskLevel !== 'high') {
+    return {
+      ...weightedVerdict,
+      riskLevel: 'high',
+      label: '위험 신호 높음',
+      tone: 'danger',
+      description: weightedVerdict.description.includes('직접 위험')
+        ? weightedVerdict.description
+        : '미리보기 단계에서 직접 위험 신호가 확인돼, 상세 리포트도 보수적으로 보는 편이 안전합니다.',
+      reason:
+        weightedVerdict.reason ||
+        '미리보기에서 직접 위험 신호가 먼저 확인됐으므로, 상세 판단도 그 신호를 우선 반영합니다.',
+    }
+  }
 
   return {
-    riskLevel,
-    label: freePreview.riskLevelLabel || (riskLevel === 'high' ? '위험' : riskLevel === 'low' ? '좋음' : '추가 확인 필요'),
-    description: toLengthLimitedText(toSentenceLimitedText(freePreview.headline, 1), 120),
-    tone,
+    ...weightedVerdict,
+    description: weightedVerdict.description || toLengthLimitedText(toSentenceLimitedText(freePreview.headline, 1), 120),
+  }
+}
+
+function getDecisionConfidenceScore(axes = [], auxiliaryChecks = []) {
+  const score =
+    50 +
+    axes.filter((axis) => getDetailTone(axis?.level) === 'safe').length * 9 -
+    axes.filter((axis) => getDetailTone(axis?.level) === 'danger').length * 12 -
+    axes.filter((axis) => getDetailTone(axis?.level) === 'neutral').length * 4 -
+    auxiliaryChecks.filter((item) => getDetailTone(item?.level) === 'danger').length * 10 -
+    auxiliaryChecks.filter((item) => getDetailTone(item?.level) === 'warning').length * 5
+
+  return Math.max(28, Math.min(91, score))
+}
+
+function mapToneToVerdictCode(tone = 'neutral') {
+  if (tone === 'safe') return 'low_risk'
+  if (tone === 'danger') return 'high_risk'
+  if (tone === 'warning') return 'mixed'
+  return 'verification_needed'
+}
+
+function mapToneToVerdictLabel(tone = 'neutral') {
+  if (tone === 'safe') return '좋음'
+  if (tone === 'danger') return '위험 신호'
+  if (tone === 'warning') return '확인 필요'
+  return '정보 부족'
+}
+
+function mapVerdictToAction(tone = 'neutral') {
+  if (tone === 'safe') return 'apply_with_checks'
+  if (tone === 'danger') return 'avoid'
+  if (tone === 'warning') return 'check_before_apply'
+  return 'check_before_apply'
+}
+
+function getDecisionVerificationPrompt(axis = {}) {
+  const map = {
+    repetition: '운영 비중과 개선 과제를 숫자나 최근 사례 기준으로 확인해야 합니다.',
+    responsibility: '예산, 채널, 승인, 우선순위 중 직접 결정하는 범위를 확인해야 합니다.',
+    measurable: 'KPI, 리뷰 주기, 결과 보고 방식이 어떻게 잡혀 있는지 확인해야 합니다.',
+    difficulty: '입사 후 책임 범위와 문제 난이도가 어떻게 커지는지 확인해야 합니다.',
+    transferable: '외부에서도 설명 가능한 프로젝트, 리포트, 개선 결과가 남는지 확인해야 합니다.',
+    scopeClarity: '핵심 업무와 요청성 보조 업무가 어디서 갈리는지 확인해야 합니다.',
+    learningFeedback: '리뷰 주기, 피드백 주체, 회고 방식이 있는지 확인해야 합니다.',
+  }
+
+  return map[axis?.key] || `${axis?.label || '핵심 항목'}을 구체적으로 확인해야 합니다.`
+}
+
+function buildDecisionRiskSignals(sevenAxes = [], auxiliaryChecks = []) {
+  if (auxiliaryChecks?.__detailCoreRisks?.length > 0) {
+    return auxiliaryChecks.__detailCoreRisks.slice(0, 5).map((risk) => ({
+      source: 'core_risk',
+      key: risk.key,
+      label: risk.title,
+      severity: risk.severity,
+      evidenceQuote: '',
+      summary: risk.summary,
+      decisionMeaning: risk.whyRisk,
+    }))
+  }
+
+  const axisSignals = (sevenAxes || [])
+    .filter((axis) => axis?.level === 'risk')
+    .map((axis) => ({
+      source: 'axis',
+      key: axis?.key || '',
+      label: axis?.label || '',
+      severity: 'high',
+      evidenceQuote: axis?.evidence?.quote || '',
+      summary: axis?.riskInterpretation || axis?.summary || '',
+      decisionMeaning: axis?.decisionMeaning || '',
+    }))
+
+  const auxiliarySignals = (auxiliaryChecks || [])
+    .filter((item) => getDetailTone(item?.level) === 'danger')
+    .map((item) => ({
+      source: 'auxiliary_check',
+      key: item?.key || '',
+      label: item?.label || '',
+      severity: 'high',
+      evidenceQuote: item?.evidence?.quote || '',
+      summary: item?.summary || '',
+      decisionMeaning: item?.riskyAnswerSignal || item?.question || '',
+    }))
+
+  return [...axisSignals, ...auxiliarySignals].slice(0, 5)
+}
+
+function getVerificationTopicSignature(item = {}) {
+  const key = String(item?.key || '')
+  if (key === 'scope_breadth' || key === 'scopeClarity') return 'scope_breakdown'
+  if (key === 'authority_gap' || key === 'responsibility') return 'decision_authority'
+  if (key === 'kpi_gap' || key === 'measurable') return 'kpi_metrics'
+  if (key === 'ops_mix' || key === 'repetition') return 'ops_vs_improvement'
+
+  const text = `${item?.label || ''} ${item?.missingInfo || ''} ${item?.questionToAsk || ''}`.toLowerCase()
+  if (/(자사몰|crm|인플루언서|라이브커머스|콘텐츠).*(비중|주 업무)|주 업무.*(자사몰|crm|인플루언서|라이브커머스|콘텐츠)/i.test(text)) return 'scope_breakdown'
+  if (/(kpi|roas|cvr|매출|리텐션|성과|평가)/i.test(text)) return 'kpi_metrics'
+  if (/(예산|채널|승인|우선순위|의사결정|권한)/i.test(text)) return 'decision_authority'
+  if (/(운영).*(개선|전략|기획|실험|비중)|(개선|전략|기획|실험).*(운영|비중)/i.test(text)) return 'ops_vs_improvement'
+  return key || text
+}
+
+function buildDecisionNextSteps(coreRisks = [], reliabilityGate = null) {
+  if (reliabilityGate?.criticalCount >= 1) {
+    return [
+      '공식 채용 주체, 회사 이메일, 계약서를 먼저 확인하세요.',
+      '그다음 실제 업무 범위와 KPI 구조를 확인하세요.',
+      '기본 신원과 계약 구조가 흐리면 지원 판단을 멈추세요.',
+    ]
+  }
+
+  const keys = new Set(coreRisks.map((risk) => risk.key))
+  const items = []
+
+  if (keys.has('scope_breadth')) {
+    items.push('핵심 업무와 보조 업무를 나눠서 설명해 달라고 요청하세요.')
+  }
+  if (keys.has('authority_gap')) {
+    items.push('예산, 채널, 우선순위 중 직접 결정하는 범위를 먼저 확인하세요.')
+  }
+  if (keys.has('kpi_gap')) {
+    items.push('입사 후 직접 책임지는 KPI와 리뷰 기준을 먼저 확인하세요.')
+  }
+  if (keys.has('ops_mix')) {
+    items.push('운영 업무와 개선 업무의 실제 비중을 숫자 기준으로 확인하세요.')
+  }
+
+  return dedupeTextItems(items, (item) => item).slice(0, 3)
+}
+
+function buildDecisionVerificationNotes(coreRisks = [], sevenAxes = [], auxiliaryChecks = []) {
+  const coreRiskNotes = (coreRisks || []).map((risk) => ({
+    key: risk.key,
+    text:
+      risk.key === 'scope_breadth'
+        ? '자사몰, CRM, 콘텐츠, 라이브커머스 중 실제 주 업무와 각 업무 비중을 확인해야 합니다.'
+        : risk.key === 'authority_gap'
+          ? '예산, 채널, 우선순위 중 직접 결정하거나 제안하는 범위를 확인해야 합니다.'
+          : risk.key === 'kpi_gap'
+            ? '직접 책임지는 KPI, 리뷰 주기, 결과 보고 방식을 확인해야 합니다.'
+            : risk.key === 'ops_mix'
+              ? '운영 업무와 실험·개선 업무의 실제 비중을 최근 사례 기준으로 확인해야 합니다.'
+              : risk.questionToVerify || risk.whyRisk,
+  }))
+
+  const axisNotes = (sevenAxes || [])
+    .filter((axis) => axis?.level === 'insufficient_info')
+    .map((axis) => ({
+      key: axis?.key,
+      text: `${axis?.label || '이 축'}은 아직 공고 근거가 비어 있어 ${getAxisDecisionMeta(axis?.key).confirmPoint.toLowerCase()}`,
+    }))
+
+  const auxiliaryNotes = (auxiliaryChecks || [])
+    .filter((item) => getDetailTone(item?.level) === 'warning')
+    .map((item) => ({
+      key: item?.key,
+      text: item?.goodAnswerSignal || item?.summary || '',
+    }))
+
+  return dedupeTextItems([...coreRiskNotes, ...axisNotes, ...auxiliaryNotes], (item) => getVerificationTopicSignature(item))
+    .map((item) => toLengthLimitedText(toSentenceLimitedText(item?.text, 2), 140))
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function buildDecisionVerificationNeeded(sevenAxes = [], auxiliaryChecks = []) {
+  const coreRiskItems = (auxiliaryChecks?.__detailCoreRisks || []).map((risk) => ({
+    source: 'core_risk',
+    key: risk.key,
+    label: risk.title,
+    missingInfo: risk.summary,
+    whyItMatters: risk.whyRisk,
+    questionToAsk: risk.questionToVerify,
+  }))
+
+  const axisItems = (sevenAxes || [])
+    .filter((axis) => axis?.level === 'insufficient_info')
+    .map((axis) => ({
+      source: 'axis',
+      key: axis?.key || '',
+      label: axis?.label || '',
+      missingInfo: axis?.summary || `${axis?.label || '핵심 항목'} 관련 근거가 부족합니다.`,
+      whyItMatters: axis?.decisionMeaning || '정보가 부족하면 지원 판단을 보수적으로 해야 합니다.',
+      questionToAsk: getDecisionVerificationPrompt(axis),
+    }))
+
+  const auxiliaryItems = (auxiliaryChecks || [])
+    .filter((item) => getDetailTone(item?.level) === 'warning')
+    .map((item) => ({
+      source: 'auxiliary_check',
+      key: item?.key || '',
+      label: item?.label || '',
+      missingInfo: item?.summary || `${item?.label || '핵심 항목'} 확인이 필요합니다.`,
+      whyItMatters: item?.goodAnswerSignal || '이 항목은 실제 지원 판단에 직접 영향을 줍니다.',
+      questionToAsk: item?.question || '',
+    }))
+
+  const dedupedByQuestion = dedupeTextItems([...coreRiskItems, ...axisItems, ...auxiliaryItems], (item) => item.questionToAsk)
+  return dedupeTextItems(dedupedByQuestion, (item) => getVerificationTopicSignature(item)).slice(0, 6)
+}
+
+export function buildDecisionReport({ freePreview, detail }) {
+  const verdict = detail?.displayVerdict || buildFallbackDisplayVerdict(detail)
+  const sevenAxes = detail?.sevenAxes || []
+  const fiveAxes = detail?.fiveAxes || []
+  const auxiliaryChecks = detail?.auxiliaryChecks || []
+  const coreRisks = detail?.coreRisks || []
+  const interviewQuestions = detail?.interviewQuestions || []
+  const scoringAxes = sevenAxes.length > 0 ? sevenAxes : fiveAxes
+  const decisionAuxiliaryChecks = Object.assign([], auxiliaryChecks, { __detailCoreRisks: coreRisks })
+  const confidenceScore = getDecisionConfidenceScore(scoringAxes, auxiliaryChecks)
+  const decisionStance = detail?.decisionStance || buildDecisionStance(coreRisks)
+  const nextSteps = buildDecisionNextSteps(coreRisks)
+  const verificationNotes = buildDecisionVerificationNotes(coreRisks, sevenAxes, auxiliaryChecks)
+  const alignedVerdict = buildVerdictMessagingFromCoreRisks(coreRisks) || null
+
+  return {
+    overallVerdict: {
+      code: mapToneToVerdictCode(verdict?.tone),
+      label: mapToneToVerdictLabel(verdict?.tone),
+      tone: verdict?.tone || 'neutral',
+      headline: decisionStance.headline,
+      decisionLevel: decisionStance.decisionLevel,
+      summary: verdict?.reason || verdict?.description || '',
+      confidenceScore,
+      confidenceReason: buildConfidenceReason(scoringAxes, auxiliaryChecks),
+    },
+    summary: {
+      headline: alignedVerdict?.description || freePreview?.headline || verdict?.description || '',
+      oneLineReason: detail?.actionGuide || verdict?.reason || verdict?.description || '',
+      topEvidenceQuote: freePreview?.topEvidence?.quote || detail?.keyEvidence?.[0]?.quote || '',
+      topEvidenceInterpretation:
+        freePreview?.topEvidence?.interpretation || detail?.keyEvidence?.[0]?.interpretation || '',
+    },
+    riskSignals: buildDecisionRiskSignals(sevenAxes, decisionAuxiliaryChecks),
+    verificationNeeded: buildDecisionVerificationNeeded(sevenAxes, decisionAuxiliaryChecks),
+    recommendedQuestions: interviewQuestions.map((item, index) => ({
+      key: item?.category || `question_${index}`,
+      category: item?.category || '',
+      question: item?.question || '',
+      whyAsk: item?.whyAsk || '',
+      goodAnswerSignal: item?.goodAnswerSignal || '',
+      riskyAnswerSignal: item?.riskyAnswerSignal || '',
+      answerDecisionHint: item?.answerDecisionHint || '',
+    })),
+    axes: {
+      five: fiveAxes,
+      seven: sevenAxes,
+    },
+    decisionGuide: {
+      recommendedAction: decisionStance.recommendedAction || mapVerdictToAction(verdict?.tone),
+      headline: decisionStance.headline,
+      decisionLevel: decisionStance.decisionLevel,
+      reason: detail?.actionGuide || verdict?.reason || verdict?.description || '',
+      nextSteps,
+      verificationNotes,
+    },
   }
 }
 
 function finalizeDetailForDisplay(detail, structured, freePreview = null) {
+  const enrichedDetail = enrichAxesForDecision(detail)
+  const coreRisks = buildCoreRisks(enrichedDetail, structured)
+  const detailWithCoreRisks = { ...enrichedDetail, coreRisks }
   const reliabilityGate = structured?.reliabilityGate || buildReliabilityGate(structured)
-  const auxiliaryChecks = filterAuxiliaryChecksForDisplay(detail?.auxiliaryChecks || [], reliabilityGate)
-  const interviewQuestions = filterInterviewQuestionsForDisplay(detail?.interviewQuestions || [], {
+  const auxiliaryChecks = filterAuxiliaryChecksForDisplay(detailWithCoreRisks?.auxiliaryChecks || [], reliabilityGate)
+  const interviewQuestions = filterInterviewQuestionsForDisplay(
+    dedupeTextItems([...buildCoreRiskQuestions(coreRisks), ...(detailWithCoreRisks?.interviewQuestions || [])], (item) => item.question),
+    {
     auxiliaryChecks,
     structured,
-    detailJobFamily: detail?.jobFamily || structured?.jobFamily || null,
-  })
+      detailJobFamily: detailWithCoreRisks?.jobFamily || structured?.jobFamily || null,
+      coreRisks,
+    },
+  )
+  const prioritizedQuestions = prioritizeInterviewQuestionsForCoreRisks(interviewQuestions, coreRisks)
+  const actionGuide = buildActionGuideFromCoreRisks(coreRisks, reliabilityGate)
+  const decisionStance = buildDecisionStance(coreRisks, reliabilityGate)
 
   return {
-    ...detail,
-    finalSummary: toLengthLimitedText(toSentenceLimitedText(detail?.finalSummary, 1), 120),
-    actionGuide: toLengthLimitedText(toSentenceLimitedText(detail?.actionGuide, 2), 180),
+    ...detailWithCoreRisks,
+    finalSummary: toLengthLimitedText(toSentenceLimitedText(detailWithCoreRisks?.finalSummary, 1), 120),
+    actionGuide: toLengthLimitedText(toSentenceLimitedText(actionGuide || detailWithCoreRisks?.actionGuide, 2), 180),
     auxiliaryChecks,
-    keyEvidence: (detail?.keyEvidence || []).slice(0, 3).map((item) => ({
+    keyEvidence: (detailWithCoreRisks?.keyEvidence || []).slice(0, 3).map((item) => ({
       ...item,
+      quote: compactEvidenceQuote(item?.quote, 110),
       interpretation: toLengthLimitedText(toSentenceLimitedText(item?.interpretation, 1), 80),
       whyImportant: toLengthLimitedText(toSentenceLimitedText(item?.whyImportant, 1), 80),
     })),
-    interviewQuestions: pickInterviewQuestionsForCompactDisplay(interviewQuestions, 5),
-    companyContext: compactCompanyContext(detail?.companyContext),
-    displayVerdict: buildDisplayVerdict({ freePreview, detail }),
+    sevenAxes: (detailWithCoreRisks?.sevenAxes || []).map((axis) => ({
+      ...axis,
+      evidence: axis?.evidence
+        ? {
+            ...axis.evidence,
+            quote: compactEvidenceQuote(axis?.evidence?.quote, 110),
+          }
+        : axis?.evidence,
+      summary: toLengthLimitedText(toSentenceLimitedText(axis?.summary, 1), 90),
+      riskInterpretation: toLengthLimitedText(toSentenceLimitedText(axis?.riskInterpretation, 3), 220),
+      decisionMeaning: toLengthLimitedText(toSentenceLimitedText(axis?.decisionMeaning, 2), 120),
+    })),
+    fiveAxes: (detailWithCoreRisks?.fiveAxes || []).map((axis) => ({
+      ...axis,
+      evidence: axis?.evidence
+        ? {
+            ...axis.evidence,
+            quote: compactEvidenceQuote(axis?.evidence?.quote, 110),
+          }
+        : axis?.evidence,
+      summary: toLengthLimitedText(toSentenceLimitedText(axis?.summary, 1), 90),
+      riskInterpretation: toLengthLimitedText(toSentenceLimitedText(axis?.riskInterpretation, 3), 220),
+      decisionMeaning: toLengthLimitedText(toSentenceLimitedText(axis?.decisionMeaning, 2), 120),
+    })),
+    coreRisks,
+    decisionStance,
+    interviewQuestions: pickInterviewQuestionsForCompactDisplay(
+      prioritizedQuestions.map((item) => ({
+        ...item,
+        answerDecisionHint: toLengthLimitedText(
+          toSentenceLimitedText(
+            item?.answerDecisionHint || buildAnswerDecisionHint(item?.category, item?.goodAnswerSignal, item?.riskyAnswerSignal),
+            2,
+          ),
+          110,
+        ),
+      })),
+      6,
+      coreRisks,
+    ),
+    companyContext: compactCompanyContext(detailWithCoreRisks?.companyContext),
+    displayVerdict: buildDisplayVerdict({ freePreview, detail: { ...detailWithCoreRisks, actionGuide } }),
   }
 }
 
@@ -3337,7 +4598,7 @@ function applyPreviewPersuasionPolicy(preview, fallbackPreview, trace = null) {
     fallbackText: interpretationFallback,
   })
 
-  const shortReasons = (preview?.shortReasons || []).slice(0, 1).map((reason, index) => {
+  const shortReasons = (preview?.shortReasons || []).slice(0, 2).map((reason, index) => {
     const fallbackText = fallbackPreview.shortReasons?.[index] || fallbackPreview.shortReasons?.[0] || allowedTemplates.preview.freeItems[0]
     return sanitizeCopyWithPolicy(reason, {
       surface: 'preview',
@@ -3371,7 +4632,7 @@ function applyPreviewPersuasionPolicy(preview, fallbackPreview, trace = null) {
         fallback: interpretationFallback || '',
         usedFallback: Boolean((rawInterpretation || '') !== (interpretation || '') && (interpretation || '') === (interpretationFallback || '')),
       },
-      shortReasons: (preview?.shortReasons || []).slice(0, 1).map((reason, index) => {
+      shortReasons: (preview?.shortReasons || []).slice(0, 2).map((reason, index) => {
         const fallbackText = fallbackPreview.shortReasons?.[index] || fallbackPreview.shortReasons?.[0] || allowedTemplates.preview.freeItems[0]
         const output = shortReasons[index] || ''
         return {
@@ -3715,10 +4976,7 @@ function enforceQuality(detail, sourceLines, structured = null) {
         ...axis,
         level: relaxedLevel,
         levelLabel: levelToKo(relaxedLevel),
-        summary:
-          axis?.level && axis.level !== 'insufficient_info'
-            ? axis.summary
-            : `${axis.label} 항목은 공고에서 직접 근거를 찾기 어려워 추가 확인이 필요합니다.`,
+        summary: getAxisInsufficientInfoSummary(axis?.key),
         evidence: null,
       }
     }
@@ -4082,7 +5340,7 @@ function buildPreviewPromptPayload(structured, fallback) {
             interpretation: toLengthLimitedText(fallback.topEvidence.interpretation, 80),
           }
         : null,
-      shortReasons: (fallback?.shortReasons || []).slice(0, 1).map((reason) => toLengthLimitedText(reason, 80)),
+      shortReasons: (fallback?.shortReasons || []).slice(0, 2).map((reason) => toLengthLimitedText(reason, 80)),
       verificationQuestion: toLengthLimitedText(fallback?.verificationQuestion, 72),
       structuredSummary: fallback?.structuredSummary
         ? {
@@ -4104,7 +5362,7 @@ function buildDetailPromptPayload(analysis, fallback) {
           riskLevelLabel: analysis.freePreview.riskLevelLabel || null,
           headline: toLengthLimitedText(analysis.freePreview.headline, 100),
           verificationQuestion: toLengthLimitedText(analysis.freePreview.verificationQuestion, 80),
-          shortReasons: (analysis.freePreview.shortReasons || []).slice(0, 1).map((reason) => toLengthLimitedText(reason, 80)),
+          shortReasons: (analysis.freePreview.shortReasons || []).slice(0, 2).map((reason) => toLengthLimitedText(reason, 80)),
         }
       : null,
     fallback: {
@@ -4352,8 +5610,8 @@ export async function buildDetailReport({ analysis }, options = {}) {
           '손실 공포, 미래 보장, 압박형 결제 문구, 사회적 증거 표현은 금지합니다.',
           '유료 가치는 무엇이 더 제공되는지 설명할 수 있지만, 지금 결제하라고 압박하지 마세요.',
           '간결하게 작성하세요. 최종 요약은 1문장, actionGuide는 2문장 이내로 제한하세요.',
-          'keyEvidence는 가장 중요한 3개만, interviewQuestions는 우선순위가 높은 4개만 작성하세요.',
-          'goodAnswerSignal, riskyAnswerSignal, whyAsk는 1문장 이하의 아주 짧은 기준으로 작성하세요.',
+          'keyEvidence는 가장 중요한 3개만, interviewQuestions는 우선순위가 높은 5~7개로 작성하세요.',
+          'goodAnswerSignal, riskyAnswerSignal, whyAsk, answerDecisionHint는 1문장 이하의 짧은 기준으로 작성하세요.',
           JSON.stringify(detailPromptPayload),
         ].join('\n'),
       },
@@ -4366,8 +5624,14 @@ export async function buildDetailReport({ analysis }, options = {}) {
   policyCheckedDetail.companyContext = hydrateDetailCompanyContext(policyCheckedDetail, fallback, analysis.structured)
   const qualityCheckedDetail = enforceQuality(policyCheckedDetail, analysis.structured.lines || [], analysis.structured)
 
+  const finalizedDetail = finalizeDetailForDisplay(qualityCheckedDetail, analysis.structured, analysis.freePreview || null)
   const result = {
-    detail: finalizeDetailForDisplay(qualityCheckedDetail, analysis.structured, analysis.freePreview || null),
+    detail: finalizedDetail,
+    decisionReport: buildDecisionReport({
+      freePreview: analysis.freePreview || null,
+      detail: finalizedDetail,
+    }),
+    detailVersion: DETAIL_SCHEMA_VERSION,
     engine: llm ? `openai:${detailModel}` : 'deterministic_fallback',
     openAiUsage: llmResult?.usage || null,
     openAiOutputChars: llmResult?.outputChars ?? null,

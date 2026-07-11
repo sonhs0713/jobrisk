@@ -5,6 +5,16 @@ function normalizeFeedbackLabel(rating) {
   return rating || '미분류'
 }
 
+function stringifyPayload(value) {
+  if (!value) return ''
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 async function postToFormsfree(endpoint, payload) {
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -19,7 +29,7 @@ async function postToFormsfree(endpoint, payload) {
   }
 }
 
-export async function relayFeedbackToFormsfree({ analysisId, rating, note }) {
+export async function relayFeedbackToFormsfree({ analysisId, rating, note, analysis = null }) {
   const endpoint = String(process.env.FORMSPREE_FEEDBACK_URL || '').trim()
   if (!endpoint) return { relayed: false, skipped: true }
 
@@ -28,9 +38,12 @@ export async function relayFeedbackToFormsfree({ analysisId, rating, note }) {
     rating,
     ratingLabel: normalizeFeedbackLabel(rating),
     note: note || '',
+    jobPostingText: String(analysis?.jobPostingText || '').trim(),
+    freePreview: stringifyPayload(analysis?.freePreview || null),
+    paidDetail: stringifyPayload(analysis?.detail || null),
     source: 'jobrisk-paid-report',
     submittedAt: new Date().toISOString(),
-    subject: `[JobRisk 피드백] ${normalizeFeedbackLabel(rating)}`,
+    subject: `[JobRisk 피드백] ${normalizeFeedbackLabel(rating)} / ${analysisId}`,
   })
 
   await postToFormsfree(endpoint, payload)
