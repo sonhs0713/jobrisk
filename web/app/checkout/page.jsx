@@ -25,7 +25,8 @@ export default function CheckoutPage() {
     startedRef.current = true
 
     const params = new URLSearchParams(window.location.search)
-    const mode = params.get('mode') || 'card'
+    const allowDevPaymentBypass = process.env.NEXT_PUBLIC_ALLOW_DEV_PAYMENT_BYPASS === 'true'
+    const mode = allowDevPaymentBypass ? params.get('mode') || 'card' : 'card'
     const analysisId = String(params.get('analysisId') || '').trim()
     const customerEmail = String(params.get('email') || '').trim()
 
@@ -43,7 +44,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({ analysisId, customerEmail }),
       })
 
-      if (mode === 'dev') {
+      if (mode === 'dev' && allowDevPaymentBypass) {
         setStatus('면접 질문과 답변 해석 기준을 정리하고 있습니다.')
         const verified = await apiFetch('/api/payments/verify', {
           method: 'POST',

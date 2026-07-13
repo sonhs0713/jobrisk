@@ -116,6 +116,22 @@ const COUPANG_EATS_VISUAL_DESIGN_POSTING = `
 https://www.coupang.jobs/kr/privacy-policy
 `
 
+const HOTEL_SALES_MANAGER_POSTING = `
+여기어때 Hotel Sales Manager
+
+주요업무
+• 담당 지역 호텔·리조트 신규 제휴 및 파트너 관계 구축
+• 정기적인 파트너 미팅을 통한 객실 재고 및 가격 조건 협의
+• 특가 프로모션 및 홀세일 상품 운영 등 판매 전략 실행을 통한 경쟁력 강화
+• 주간·월간 매출 데이터 분석 및 영업 지표 개선 액션 도출
+• 숙박 시장 트렌드 및 경쟁사 분석을 기반으로 한 영업 전략 수립
+
+자격요건
+• 호텔·리조트·OTA 또는 여행·관광 업계 세일즈 경험
+• 파트너와의 커뮤니케이션 및 계약 운영 경험
+• 데이터를 기반으로 실적을 분석하고 실행으로 연결할 수 있는 분
+`
+
 function buildMockPreviewLlm({
   quote,
   interpretation = 'LLM이 낮은 위험으로 판단했습니다.',
@@ -2520,6 +2536,16 @@ test('sales posting does not inherit product-only ai company-context hypothesis'
   const hypothesisBlob = JSON.stringify(preview.structured.companyContext.jobConnectionHypotheses || [])
   assert.equal(/AI·데이터 서비스 신호/.test(hypothesisBlob), false)
   assert.equal(preview.structured.companyContext.mustAskQuestions.length, 0)
+})
+
+test('sales free preview surfaces partner-operations tension instead of generic operations copy', async () => {
+  const preview = await buildPreview({ jobPostingText: HOTEL_SALES_MANAGER_POSTING })
+
+  assert.equal(preview.structured.jobFamily.id, 'sales')
+  assert.equal(/파트너 운영|가격 조건 협의/.test(preview.freePreview.headline), true)
+  assert.equal(/객실 재고|가격 조건|홀세일|프로모션/.test(preview.freePreview.topEvidence.quote), true)
+  assert.equal(/파트너 운영|가격 조건 협의/.test(preview.freePreview.verificationQuestion), true)
+  assert.equal(/운영 업무와 개선 업무 중 실제로 더 큰 비중은 어느 쪽인가요\?/.test(preview.freePreview.verificationQuestion), false)
 })
 
 test('design contract posting avoids repeating the same evidence across multiple key axes', async () => {

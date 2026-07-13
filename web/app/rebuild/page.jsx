@@ -3,12 +3,7 @@ import HeroTypingTitle from './HeroTypingTitle'
 import RevealSection from './RevealSection'
 import styles from './rebuild.module.css'
 
-const navLinks = [
-  { href: '#problem', label: '서비스 소개' },
-  { href: '#free-analysis', label: '무료 분석' },
-  { href: '#example', label: '분석 예시' },
-  { href: '#paid-report', label: '유료 결과' },
-]
+const navLinks = []
 
 const heroSignals = [
   {
@@ -45,6 +40,18 @@ const paidQuestions = [
   '예산과 개선 우선순위 결정 권한이 있나요?',
   '현재 가장 중요한 문제는 무엇인가요?',
   '1년 뒤에 이 역할은 어떻게 달라지나요?',
+]
+
+const paidRiskSignals = [
+  '업무 범위가 넓게 묶여 있어 핵심 역할 경계 확인 필요',
+  '전략 문구는 있지만 실제 결정권 범위는 추가 검증 필요',
+  '성과 분석 경험이 직접 KPI 책임으로 이어지는지 확인 필요',
+]
+
+const paidActionChecks = [
+  '주 업무와 보조 업무 비중을 숫자 기준으로 확인',
+  '예산·채널·우선순위 중 직접 결정 범위 확인',
+  '입사 후 직접 책임지는 KPI와 리뷰 기준 확인',
 ]
 
 const howItWorksSteps = [
@@ -93,7 +100,7 @@ const forWhomCards = [
 ]
 
 export const metadata = {
-  title: 'JobRisk Frontend Rebuild',
+  title: '잡리스크: 채용공고 물경력 가능성 분석',
   description: '잡리스크 랜딩 페이지를 섹션 단위로 다시 구현하는 작업 페이지입니다.',
 }
 
@@ -107,13 +114,15 @@ export default function RebuildPage() {
             <span className={styles.brandDot} aria-hidden="true" />
           </a>
 
-          <nav className={styles.navMenu} aria-label="주요 메뉴">
-            {navLinks.map((link) => (
-              <a className={styles.navLink} href={link.href} key={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </nav>
+          {navLinks.length ? (
+            <nav className={styles.navMenu} aria-label="주요 메뉴">
+              {navLinks.map((link) => (
+                <a className={styles.navLink} href={link.href} key={link.href}>
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+          ) : null}
 
           <div className={styles.navAside}>
             <a className={styles.navCta} href="#free-analysis">
@@ -144,6 +153,10 @@ export default function RebuildPage() {
                 무료 공고 분석하기
                 <span aria-hidden="true">→</span>
               </a>
+              <div className={styles.heroOfferBadge}>
+                <strong>얼리버드 3,000원</strong>
+                <span>선착순 20명 출시 후 1개월 무료 사용권 제공 예정</span>
+              </div>
             </div>
           </div>
 
@@ -282,22 +295,18 @@ export default function RebuildPage() {
         <div className={styles.exampleLayout}>
           <div className={styles.exampleCopy}>
             <h2>
-              실제 공고
+              공고 근거로
               <br />
-              예시로 분석
+              위험 신호를 잡고
               <br />
-              과정을
+              확인 기준까지
               <br />
-              확인해보세요
+              연결합니다
             </h2>
-            <a className={styles.exampleMoreButton} href="#example">
-              다음 예시 보기
-              <span aria-hidden="true">→</span>
-            </a>
           </div>
 
           <div className={styles.exampleCard}>
-            <div className={styles.exampleHead}>예시. 스타트업 마케터 공고</div>
+            <div className={styles.exampleHead}>작동 원리 예시</div>
 
             <div className={styles.exampleGrid}>
               <article className={styles.exampleBlock}>
@@ -314,8 +323,7 @@ export default function RebuildPage() {
               </div>
 
               <article className={styles.exampleBlock}>
-                <strong>면접 질문 예시</strong>
-                <div className={styles.exampleQuestionMark}>Q.</div>
+                <strong>면접 질문</strong>
                 <p>주도적으로 아이디어를 내고 실행한 경험이 있나요?</p>
               </article>
 
@@ -359,10 +367,6 @@ export default function RebuildPage() {
               <br />
               제공합니다
             </h2>
-            <a className={styles.paidAnalysisButton} href="#paid-report">
-              유료 결과 미리보기
-              <span aria-hidden="true">→</span>
-            </a>
           </div>
 
           <div className={styles.paidReportCard}>
@@ -371,7 +375,74 @@ export default function RebuildPage() {
               <span>실제 리포트는 더 상세합니다.</span>
             </div>
 
-            <div className={styles.paidReportGrid}>
+            <div className={styles.paidReportPreview}>
+              <article className={styles.paidPreviewSummary}>
+                <div className={styles.paidPreviewSummaryCopy}>
+                  <span className={styles.paidPreviewLabel}>종합 판단</span>
+                  <h3>추가 확인이 필요합니다</h3>
+                  <p>좋아 보이는 표현은 있지만, 실제 역할 범위와 KPI 책임 구조는 면접에서 더 확인해야 합니다.</p>
+                </div>
+
+                <div className={styles.paidPreviewScore}>
+                  <span className={styles.paidPreviewLabel}>신뢰도</span>
+                  <div className={styles.paidPreviewScoreValue}>
+                    <strong>64</strong>
+                    <small>/100</small>
+                  </div>
+                  <div className={styles.paidPreviewScoreBar} aria-hidden="true">
+                    <span style={{ width: '64%' }} />
+                  </div>
+                  <p>근거가 구체적일수록 점수의 신뢰도가 높아집니다.</p>
+                </div>
+              </article>
+
+              <div className={styles.paidPreviewBody}>
+                <article className={styles.paidPreviewColumn}>
+                  <span className={styles.paidPreviewLabel}>Top 3 결정 리스크</span>
+                  <div className={styles.paidPreviewRiskList}>
+                    {paidRiskSignals.map((item, index) => (
+                      <div className={styles.paidPreviewRiskItem} key={item}>
+                        <span>{index + 1}</span>
+                        <p>{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className={styles.paidPreviewColumn}>
+                  <span className={styles.paidPreviewLabel}>면접에서 꼭 물어볼 질문</span>
+                  <ol className={styles.paidQuestionList}>
+                    {paidQuestions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ol>
+                </article>
+
+                <article className={styles.paidPreviewColumn}>
+                  <span className={styles.paidPreviewLabel}>답변 해석 가이드</span>
+                  <div className={styles.paidGuideStack}>
+                    <div className={styles.paidGuideRow}>
+                      <span className={`${styles.paidGuideChip} ${styles.paidGuideGood}`}>좋은 신호</span>
+                      <p>구체적인 지표, 책임 범위, 최근 사례를 함께 설명합니다.</p>
+                    </div>
+                    <div className={styles.paidGuideRow}>
+                      <span className={`${styles.paidGuideChip} ${styles.paidGuideRisk}`}>위험 신호</span>
+                      <p>실행만 맡는다고 하거나 권한과 평가 기준 설명이 끝까지 모호합니다.</p>
+                    </div>
+                  </div>
+                  <div className={styles.paidFinalGuide}>
+                    <strong>최종 행동 가이드</strong>
+                    <ul className={styles.paidActionList}>
+                      {paidActionChecks.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div className={styles.paidReportGridLegacy} aria-hidden="true">
               <article className={styles.paidReportBlock}>
                 <strong>7대 핵심 분석</strong>
                 <div className={styles.scoreRadar}>

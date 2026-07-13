@@ -136,21 +136,22 @@
 }
 
 .hero {
-  padding: 28px 0 0;
+  padding: 22px 0 0;
 }
 
 .navCard {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
-  padding: 14px 20px 14px 24px;
-  border: 1px solid rgba(21, 27, 37, 0.08);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
+  gap: 18px;
+  padding: 10px 14px 10px 18px;
+  border: 1px solid rgba(21, 27, 37, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
   box-shadow:
-    0 18px 42px rgba(21, 27, 37, 0.05),
+    0 14px 32px rgba(21, 27, 37, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
 }
 
 .brand {
@@ -510,10 +511,37 @@
 
 .heroActions {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  align-items: stretch;
+  gap: 14px;
   flex-wrap: wrap;
   margin-top: 34px;
+}
+
+.heroOfferBadge {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  min-height: 48px;
+  max-width: 320px;
+  padding: 12px 16px;
+  border: 1px solid rgba(219, 58, 44, 0.16);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 251, 249, 0.98) 0%, rgba(255, 245, 242, 0.92) 100%);
+  box-shadow: 0 14px 26px rgba(201, 47, 35, 0.1);
+}
+
+.heroOfferBadge strong {
+  color: #c92f23;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.heroOfferBadge span {
+  color: #5d6672;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
 }
 
 .heroMeta {
@@ -528,7 +556,7 @@
 .heroVisual {
   display: grid;
   grid-template-columns: minmax(270px, 1fr) 68px minmax(250px, 0.8fr);
-  align-items: center;
+  align-items: stretch;
   gap: 22px;
 }
 
@@ -536,14 +564,14 @@
 .signalCard {
   position: relative;
   border: 1px solid rgba(21, 27, 37, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 20px 40px rgba(21, 27, 37, 0.06);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 22px 44px rgba(21, 27, 37, 0.06);
 }
 
 .quoteCard {
-  min-height: 310px;
-  padding: 28px 28px 26px;
+  min-height: 332px;
+  padding: 30px 30px 28px;
   overflow: hidden;
 }
 
@@ -620,7 +648,7 @@
 }
 
 .signalCard {
-  padding: 20px 20px 18px;
+  padding: 24px 22px 22px;
 }
 
 .signalCard h2 {
@@ -824,7 +852,7 @@
 .freeAnalysisLayout {
   display: grid;
   grid-template-columns: minmax(280px, 0.72fr) 44px minmax(780px, 1.28fr);
-  gap: 18px;
+  gap: 28px;
   align-items: start;
 }
 
@@ -914,17 +942,28 @@
 
 .freePreviewColumn {
   display: grid;
-  gap: 16px;
+  gap: 20px;
 }
 
 .freePreviewCard,
 .exampleCard,
 .paidReportCard {
+  position: relative;
   border: 1px solid rgba(21, 27, 37, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 20px 44px rgba(21, 27, 37, 0.04);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 22px 48px rgba(21, 27, 37, 0.045);
   overflow: hidden;
+}
+
+.paidReportCard::before,
+.freePreviewCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(219, 58, 44, 0.88) 0%, rgba(219, 58, 44, 0.26) 46%, transparent 100%);
+  pointer-events: none;
 }
 
 .freePreviewTop,
@@ -959,16 +998,17 @@
 }
 
 .freePreviewVerdict {
-  padding: 18px 18px 16px;
+  padding: 20px 20px 18px;
   border-bottom: 1px solid rgba(21, 27, 37, 0.08);
 }
 
 .freePreviewVerdict h3 {
   margin: 0;
   color: #1a1e25;
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: -0.05em;
+  line-height: 1.34;
 }
 
 .freePreviewVerdict h3 span,
@@ -979,14 +1019,68 @@
 
 .freePreviewGrid {
   display: grid;
-  grid-template-columns: 1.02fr 1fr 0.88fr;
+  grid-template-columns: 1.08fr 0.96fr 0.92fr;
 }
 
 .freePreviewBlock,
 .paidReportBlock {
-  min-height: 146px;
-  padding: 16px 18px;
+  min-height: 154px;
+  padding: 18px 20px;
   border-right: 1px solid rgba(21, 27, 37, 0.08);
+}
+
+.freePreviewBlockPrimary {
+  background: linear-gradient(180deg, rgba(255, 252, 250, 0.72) 0%, rgba(255, 248, 245, 0.46) 100%);
+}
+
+.freePreviewBlockPrimary p {
+  color: #222933;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.72;
+}
+
+.freePreviewBlockPrimary span {
+  display: block;
+  margin-top: 12px;
+  color: #5a6370;
+  font-size: 13px;
+  line-height: 1.68;
+}
+
+.freePreviewBlockSupport strong,
+.freePreviewBlockQuestion strong {
+  color: #59616c;
+}
+
+.freePreviewBlockQuestion {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.86) 0%, rgba(244, 247, 250, 0.78) 100%);
+}
+
+.freePreviewBridge {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.freePreviewBridge span,
+.freePreviewBridge strong {
+  color: #7d8692;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.freePreviewBridge strong {
+  color: #c92f23;
+}
+
+.freePreviewBridge i {
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(21, 27, 37, 0.08) 0%, rgba(219, 58, 44, 0.24) 100%);
 }
 
 .freePreviewBlock:last-child,
@@ -1016,6 +1110,14 @@
   line-height: 1.68;
 }
 
+.freeQuestionText {
+  margin: 12px 0 0;
+  color: #34404d;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.72;
+}
+
 .freeReasonList,
 .paidQuestionList {
   padding-left: 14px;
@@ -1036,31 +1138,121 @@
 
 .freeUpsellCard {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr) auto;
-  gap: 20px;
-  align-items: center;
-  padding: 18px 20px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+  gap: 0;
+  align-items: stretch;
+  padding: 0;
   border: 1px solid rgba(219, 58, 44, 0.14);
-  border-radius: 14px;
+  border-radius: 22px;
   background:
     linear-gradient(180deg, rgba(255, 248, 247, 0.96) 0%, rgba(255, 252, 251, 0.92) 100%),
     rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 36px rgba(201, 47, 35, 0.08);
+  box-shadow: 0 22px 42px rgba(201, 47, 35, 0.08);
+  overflow: hidden;
+}
+
+.freeUpsellPitch {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding: 24px 26px 24px 24px;
+  background: linear-gradient(180deg, rgba(255, 252, 251, 0.72) 0%, rgba(255, 245, 242, 0.4) 100%);
 }
 
 .freeUpsellCopy h3 {
   margin: 8px 0 0;
   color: #1a1e25;
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.04em;
+  line-height: 1.12;
 }
 
 .freeUpsellCopy p {
-  margin: 8px 0 0;
+  margin: 12px 0 0;
   color: #5c6470;
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.freeUpsellOffer {
+  display: grid;
+  gap: 8px;
+  max-width: 340px;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(219, 58, 44, 0.2);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 249, 0.99) 0%, rgba(255, 244, 240, 0.95) 100%),
+    rgba(255, 250, 248, 0.92);
+  box-shadow:
+    0 14px 30px rgba(201, 47, 35, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.freeUpsellOfferTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.freeUpsellOfferBadge,
+.freeUpsellOfferLimit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.freeUpsellOfferBadge {
+  background: rgba(201, 47, 35, 0.1);
+  color: #c92f23;
+}
+
+.freeUpsellOfferLimit {
+  background: rgba(21, 27, 37, 0.06);
+  color: #434b56;
+}
+
+.freeUpsellOfferPrice {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.freeUpsellOfferPrice strong {
+  color: #c92f23;
+  font-size: 54px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.freeUpsellOfferPrice span {
+  color: #4d5560;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.freeUpsellOfferLead {
+  margin: 0;
+  color: #5b6370;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.freeUpsellOffer > span:last-child {
+  color: #616975;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .freeUpsellEyebrow {
@@ -1073,7 +1265,8 @@
 
 .freeUpsellList {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1083,9 +1276,9 @@
   position: relative;
   padding-left: 18px;
   color: #2c333d;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .freeUpsellList li::before {
@@ -1099,15 +1292,50 @@
   background: #db3a2c;
 }
 
+.freeUpsellActionPanel {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 24px;
+  border: 0;
+  border-left: 1px solid rgba(21, 27, 37, 0.08);
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(251, 247, 244, 0.92) 100%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 12px 26px rgba(21, 27, 37, 0.04);
+}
+
+.freeUpsellActionIntro {
+  display: grid;
+  gap: 6px;
+}
+
+.freeUpsellActionIntro strong {
+  color: #1d2128;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.freeUpsellActionIntro p {
+  margin: 0;
+  color: #626a76;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .freeUpsellButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-width: 188px;
-  min-height: 48px;
+  min-height: 52px;
   padding: 0 20px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #df3c2d 0%, #c92f23 100%);
   color: #fff8f7;
   font-size: 13px;
@@ -1118,8 +1346,7 @@
 
 .freeUpsellAction {
   display: grid;
-  gap: 8px;
-  min-width: 240px;
+  gap: 10px;
 }
 
 .freeUpsellLabel {
@@ -1131,14 +1358,14 @@
 
 .freeUpsellInput {
   width: 100%;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid rgba(21, 27, 37, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid rgba(21, 27, 37, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
   color: #1f2329;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -1158,6 +1385,15 @@
   line-height: 1.45;
 }
 
+.freeUpsellActionHint {
+  margin: 0;
+  color: #505966;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+}
+
 .freeUpsellButtonDisabled {
   opacity: 0.58;
   box-shadow: none;
@@ -1168,8 +1404,12 @@
 .paidAnalysisLayout {
   display: grid;
   grid-template-columns: minmax(250px, 0.6fr) minmax(840px, 1.4fr);
-  gap: 34px;
+  gap: 42px;
   align-items: start;
+}
+
+.exampleLayout {
+  grid-template-columns: minmax(230px, 0.48fr) minmax(720px, 1.52fr);
 }
 
 .howItWorksLayout {
@@ -1319,14 +1559,15 @@
   display: grid;
   grid-template-columns: minmax(320px, 1.15fr) auto auto;
   align-items: center;
-  gap: 26px;
+  gap: 18px;
   width: 100%;
   box-sizing: border-box;
-  min-height: 106px;
-  padding: 22px 26px 22px 20px;
+  min-height: 120px;
+  padding: 24px 26px 24px 22px;
   border: 1px solid rgba(223, 60, 45, 0.14);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.62);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 251, 249, 0.88) 0%, rgba(255, 255, 255, 0.7) 100%);
+  box-shadow: 0 18px 36px rgba(201, 47, 35, 0.08);
   overflow: hidden;
 }
 
@@ -1359,26 +1600,15 @@
   justify-content: center;
   gap: 8px;
   min-width: 212px;
-  min-height: 48px;
+  min-height: 52px;
   padding: 0 24px;
-  border-radius: 4px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #df3c2d 0%, #c92f23 100%);
   color: #fff8f7;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   box-shadow: 0 14px 28px rgba(201, 47, 35, 0.18);
-}
-
-.finalCtaMeta {
-  position: relative;
-  z-index: 2;
-  margin: 0;
-  color: #7f8894;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.35;
-  white-space: nowrap;
 }
 
 .finalCtaPattern {
@@ -1489,37 +1719,30 @@
   gap: 18px;
 }
 
-.exampleMoreButton,
-.paidAnalysisButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid rgba(21, 27, 37, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.64);
-  color: #535b66;
-  font-size: 13px;
-  font-weight: 600;
+.paidAnalysisCopy {
+  align-content: start;
+  padding-top: 12px;
 }
 
 .exampleGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.95fr) 34px minmax(0, 1fr) 34px minmax(0, 1.1fr);
   align-items: stretch;
+  background:
+    linear-gradient(90deg, rgba(219, 58, 44, 0.06), transparent 40%),
+    rgba(255, 255, 255, 0.72);
 }
 
 .exampleBlock {
-  padding: 14px 16px;
+  min-height: 122px;
+  padding: 18px 18px 20px;
 }
 
 .exampleBlock p {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: #4f5761;
   font-size: 12px;
-  line-height: 1.62;
+  line-height: 1.7;
 }
 
 .exampleArrow {
@@ -1527,8 +1750,9 @@
   align-items: center;
   justify-content: center;
   color: #db3a2c;
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .exampleAnswerStack {
@@ -1578,6 +1802,184 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+
+.paidReportPreview {
+  display: grid;
+  gap: 0;
+}
+
+.paidPreviewSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) 292px;
+  gap: 20px;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid rgba(21, 27, 37, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(250, 247, 241, 0.66) 100%);
+}
+
+.paidPreviewSummaryCopy h3 {
+  margin: 10px 0 0;
+  color: #1a1e25;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1.18;
+}
+
+.paidPreviewSummaryCopy p,
+.paidPreviewScore p,
+.paidPreviewRiskItem p,
+.paidPreviewColumn p,
+.paidActionList li {
+  color: #4f5761;
+  font-size: 12px;
+  line-height: 1.68;
+}
+
+.paidPreviewSummaryCopy p {
+  margin: 10px 0 0;
+}
+
+.paidPreviewLabel {
+  display: inline-block;
+  color: #1f2329;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.paidPreviewScore {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(21, 27, 37, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.paidPreviewScoreValue {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.paidPreviewScoreValue strong {
+  color: #db3a2c;
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+}
+
+.paidPreviewScoreValue small {
+  color: #8f97a1;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.paidPreviewScoreBar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(21, 27, 37, 0.08);
+  overflow: hidden;
+}
+
+.paidPreviewScoreBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #db3a2c 0%, #ea8d7d 100%);
+}
+
+.paidPreviewScore p {
+  margin: 0;
+}
+
+.paidPreviewBody {
+  display: grid;
+  grid-template-columns: 0.96fr 1.04fr 0.96fr;
+}
+
+.paidPreviewColumn {
+  min-height: 220px;
+  padding: 20px 22px;
+  border-right: 1px solid rgba(21, 27, 37, 0.08);
+}
+
+.paidPreviewColumn:first-child {
+  background: rgba(255, 250, 248, 0.46);
+}
+
+.paidPreviewColumn:last-child {
+  background: rgba(249, 250, 252, 0.72);
+}
+
+.paidPreviewColumn:last-child {
+  border-right: 0;
+}
+
+.paidPreviewRiskList {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.paidPreviewRiskItem {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.paidPreviewRiskItem span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(219, 58, 44, 0.12);
+  color: #db3a2c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.paidPreviewRiskItem p {
+  margin: 1px 0 0;
+}
+
+.paidActionList {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paidActionList li {
+  position: relative;
+  margin: 0;
+  padding-left: 14px;
+}
+
+.paidActionList li::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #db3a2c;
+}
+
+.paidReportGridLegacy {
+  display: none;
 }
 
 .paidReportGrid {
@@ -1938,6 +2340,29 @@
     gap: 14px;
   }
 
+  .freePreviewBridge {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .freePreviewBridge i {
+    order: 3;
+  }
+
+  .freeUpsellList {
+    grid-template-columns: 1fr;
+  }
+
+  .freeUpsellOffer {
+    max-width: none;
+  }
+
+  .freeUpsellActionPanel {
+    padding: 18px;
+    border-left: 0;
+    border-top: 1px solid rgba(21, 27, 37, 0.08);
+  }
+
   .freeUpsellButton {
     width: 100%;
   }
@@ -2014,10 +2439,6 @@
   .finalCtaCard {
     gap: 14px;
     align-items: start;
-  }
-
-  .finalCtaMeta {
-    white-space: normal;
   }
 
   .footerMetaBlock {
@@ -2105,6 +2526,18 @@
     justify-content: center;
   }
 
+  .freeUpsellCopy h3 {
+    font-size: 28px;
+  }
+
+  .freeUpsellCopy p {
+    font-size: 14px;
+  }
+
+  .freeUpsellOfferPrice strong {
+    font-size: 46px;
+  }
+
   .heroProblem {
     padding-top: 20px;
     padding-bottom: 48px;
@@ -2165,6 +2598,10 @@
   .heroActions {
     align-items: stretch;
     gap: 12px;
+  }
+
+  .heroOfferBadge {
+    max-width: none;
   }
 
   .heroMeta {

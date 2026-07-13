@@ -98,7 +98,7 @@ export default function RebuildFreeAnalysisClient() {
     }
 
     if (!normalizedEmail) {
-      setUpsellError('상세 리포트를 받을 이메일을 입력해 주세요.')
+      setUpsellError('결제 확인 및 안내에 사용할 이메일을 입력해 주세요.')
       return
     }
 
@@ -130,7 +130,6 @@ export default function RebuildFreeAnalysisClient() {
       }
 
       const params = new URLSearchParams({
-        mode: 'dev',
         analysisId,
         email: normalizedEmail,
       })
@@ -197,13 +196,13 @@ export default function RebuildFreeAnalysisClient() {
           </div>
 
           <div className={styles.freePreviewGrid}>
-            <article className={styles.freePreviewBlock}>
+            <article className={`${styles.freePreviewBlock} ${styles.freePreviewBlockPrimary}`}>
               <strong>가장 강한 근거</strong>
               <p>{preview.topEvidenceQuote || preview.topEvidence}</p>
               {preview.topEvidenceInterpretation ? <span>{preview.topEvidenceInterpretation}</span> : null}
             </article>
 
-            <article className={styles.freePreviewBlock}>
+            <article className={`${styles.freePreviewBlock} ${styles.freePreviewBlockSupport}`}>
               <strong>짧은 이유</strong>
               <ul className={styles.freeReasonList}>
                 {preview.shortReasons.map((reason) => (
@@ -212,52 +211,80 @@ export default function RebuildFreeAnalysisClient() {
               </ul>
             </article>
 
-            <article className={styles.freePreviewBlock}>
+            <article className={`${styles.freePreviewBlock} ${styles.freePreviewBlockQuestion}`}>
               <strong>확인 질문</strong>
-              <div className={styles.freeQuestionMark}>Q.</div>
-              <p>{preview.verificationQuestion}</p>
+              <p className={styles.freeQuestionText}>{preview.verificationQuestion}</p>
             </article>
           </div>
         </div>
 
+        <div className={styles.freePreviewBridge} aria-hidden="true">
+          <span>무료 확인</span>
+          <i />
+          <strong>유료 판단 가이드</strong>
+        </div>
+
         <div className={styles.freeUpsellCard}>
-          <div className={styles.freeUpsellCopy}>
-            <span className={styles.freeUpsellEyebrow}>NEXT STEP</span>
-            <h3>면접 질문과 답변 해석까지 이어서 확인하세요</h3>
-            <p>무료 결과는 위험 신호 확인까지입니다. 유료 분석에서는 실제 지원 판단에 필요한 기준까지 제공합니다.</p>
+          <div className={styles.freeUpsellPitch}>
+            <div className={styles.freeUpsellCopy}>
+              <span className={styles.freeUpsellEyebrow}>NEXT STEP</span>
+              <h3>면접 질문과 답변 해석까지 확인하세요</h3>
+              <p>무료 결과는 위험 신호까지만 보여줍니다. 유료 리포트는 면접 질문, 답변 해석, 최종 판단 기준까지 제공합니다.</p>
+            </div>
+
+            <ul className={styles.freeUpsellList}>
+              {PAID_UPGRADE_POINTS.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+
+            <div className={styles.freeUpsellOffer}>
+              <div className={styles.freeUpsellOfferTop}>
+                <span className={styles.freeUpsellOfferBadge}>EARLY BIRD</span>
+                <span className={styles.freeUpsellOfferLimit}>선착순 20명</span>
+              </div>
+              <div className={styles.freeUpsellOfferPrice}>
+                <strong>3,000</strong>
+                <span>원 / 리포트 1건</span>
+              </div>
+              <p className={styles.freeUpsellOfferLead}>정식 출시 전 가장 낮은 가격으로 먼저 확인해보세요.</p>
+              <span>정식 출시 시 1개월 무료 사용권 제공 예정</span>
+            </div>
           </div>
 
-          <ul className={styles.freeUpsellList}>
-            {PAID_UPGRADE_POINTS.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
+          <div className={styles.freeUpsellActionPanel}>
+            <div className={styles.freeUpsellActionIntro}>
+              <strong>지금 바로 유료 분석을 시작하세요</strong>
+              <p>이메일 입력 후 결제 확인과 함께 바로 다음 단계로 이어집니다.</p>
+            </div>
 
-          <div className={styles.freeUpsellAction}>
-            <label className={styles.freeUpsellLabel} htmlFor="paid-analysis-email">
-              상세 리포트 확인용 이메일
-            </label>
-            <input
-              className={styles.freeUpsellInput}
-              id="paid-analysis-email"
-              name="paid-analysis-email"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@example.com"
-              type="email"
-              value={email}
-            />
-            {emailError ? <p className={styles.freeUpsellError}>{emailError}</p> : null}
-            {upsellError && !emailError ? <p className={styles.freeUpsellError}>{upsellError}</p> : null}
+            <div className={styles.freeUpsellAction}>
+              <label className={styles.freeUpsellLabel} htmlFor="paid-analysis-email">
+                결제 확인 및 안내용 이메일
+              </label>
+              <input
+                className={styles.freeUpsellInput}
+                id="paid-analysis-email"
+                name="paid-analysis-email"
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="name@example.com"
+                type="email"
+                value={email}
+              />
+              {emailError ? <p className={styles.freeUpsellError}>{emailError}</p> : null}
+              {upsellError && !emailError ? <p className={styles.freeUpsellError}>{upsellError}</p> : null}
 
-            <button
-              aria-disabled={!canStartPaidAnalysis}
-              className={`${styles.freeUpsellButton} ${!canStartPaidAnalysis ? styles.freeUpsellButtonDisabled : ''}`}
-              onClick={handlePaidAnalysisStart}
-              type="button"
-            >
-              {paidLoading ? '유료 분석 준비 중...' : '유료 분석 시작하기'}
-              <span aria-hidden="true">→</span>
-            </button>
+              <button
+                aria-disabled={!canStartPaidAnalysis}
+                className={`${styles.freeUpsellButton} ${!canStartPaidAnalysis ? styles.freeUpsellButtonDisabled : ''}`}
+                onClick={handlePaidAnalysisStart}
+                type="button"
+              >
+                {paidLoading ? '유료 분석 준비 중...' : '유료 분석 시작하기'}
+                <span aria-hidden="true">→</span>
+              </button>
+              <p className={styles.freeUpsellActionHint}>얼리버드 3,000원 적용 중</p>
+            </div>
           </div>
         </div>
       </div>

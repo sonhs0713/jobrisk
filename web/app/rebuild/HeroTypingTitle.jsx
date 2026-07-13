@@ -6,7 +6,7 @@ import styles from './rebuild.module.css'
 
 const TYPING_INTERVAL_MS = 52
 
-export default function HeroTypingTitle({ text, className = '' }) {
+export default function HeroTypingTitle({ text, className = '', id, reserveLines = 3 }) {
   const [visibleLength, setVisibleLength] = useState(0)
   const characters = Array.from(text)
 
@@ -32,8 +32,8 @@ export default function HeroTypingTitle({ text, className = '' }) {
   const visibleLines = visibleText.split('\n')
 
   return (
-    <h1 className={className}>
-      <span className={styles.typewriterText}>
+    <h1 className={className} id={id}>
+      <span className={styles.typewriterText} style={{ minHeight: reserveLines > 0 ? `calc(1.28em * ${reserveLines})` : undefined }}>
         {visibleLines.map((line, index) => {
           const isLastLine = index === visibleLines.length - 1
 

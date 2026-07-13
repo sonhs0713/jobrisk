@@ -8,6 +8,7 @@ export default function RevealSection({
   id,
   children,
   initialVisible = false,
+  ...rest
 }) {
   const ref = useRef(null)
   const [isVisible, setIsVisible] = useState(initialVisible)
@@ -60,6 +61,7 @@ export default function RevealSection({
       data-reveal-section=""
       data-visible={isVisible ? 'true' : 'false'}
       id={id}
+      {...rest}
     >
       {children}
     </Tag>

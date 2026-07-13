@@ -1,5 +1,7 @@
 ﻿import RebuildFlowShell from '../../../components/RebuildFlowShell'
 import shellStyles from '../../../components/rebuild-flow-shell.module.css'
+import RevealSection from '../../rebuild/RevealSection'
+import HeroTypingTitle from '../../rebuild/HeroTypingTitle'
 import ReportFeedbackCard from './ReportFeedbackCard'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
@@ -545,7 +547,7 @@ function KeyAxisRow({ axis, index }) {
   const summaryText = normalizeAxisSummary(axis)
 
   return (
-    <article className="report-rebuild-axis-row">
+    <article className="report-rebuild-axis-row report-rebuild-reveal-item" style={{ '--reveal-delay': `${220 + index * 36}ms` }}>
       <div className="report-rebuild-axis-mark">
         <div className="report-rebuild-axis-icon" aria-hidden="true">
           <AxisIcon axisKey={axis.key} />
@@ -581,7 +583,7 @@ function KeyAxisRow({ axis, index }) {
 
 function InterviewQuestionCard({ item, index }) {
   return (
-    <article className="report-rebuild-question-card">
+    <article className="report-rebuild-question-card report-rebuild-reveal-item" style={{ '--reveal-delay': `${180 + index * 42}ms` }}>
       <span className="report-rebuild-card-index">{String(index + 1).padStart(2, '0')}</span>
       <h3>{item.question}</h3>
       <div className="report-rebuild-question-block">
@@ -658,25 +660,32 @@ export default async function ReportPage({ params, searchParams }) {
   return (
     <RebuildFlowShell bodyClassName={`${shellStyles.bodyWide} ${shellStyles.reportFrame}`}>
       <div className="report-page report-rebuild-page">
-        <section className="report-rebuild-section" aria-labelledby="report-summary-heading">
-            <ReportSectionRail
+        <RevealSection as="section" className="report-rebuild-section" aria-labelledby="report-summary-heading">
+            <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
+              <ReportSectionRail
               index="01"
               label="REPORT SUMMARY"
               titleLines={['이 공고의 위험을 분석했습니다']}
               bodyLines={[]}
             />
+            </div>
 
-          <div className="report-rebuild-content">
-            <div className="report-rebuild-panel report-rebuild-summary-panel">
+          <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
+            <div className="report-rebuild-panel report-rebuild-summary-panel report-rebuild-reveal-item" style={{ '--reveal-delay': '140ms' }}>
               <div className="report-rebuild-summary-grid">
-                <article className="report-rebuild-card report-rebuild-card-large">
+                <article className="report-rebuild-card report-rebuild-card-large report-rebuild-reveal-item" style={{ '--reveal-delay': '180ms' }}>
                   <span className="report-rebuild-card-label">종합 판단</span>
-                  <h1 id="report-summary-heading">{verdict.headline || getSummaryHeadline(verdict.tone)}</h1>
+                  <HeroTypingTitle
+                    className="report-rebuild-hero-title"
+                    id="report-summary-heading"
+                    reserveLines={1}
+                    text={verdict.headline || getSummaryHeadline(verdict.tone)}
+                  />
                   <p>{verdict.description || verdict.summary}</p>
                   {verdict.reason ? <p>{verdict.reason}</p> : null}
                 </article>
 
-                <article className="report-rebuild-card report-rebuild-score-card">
+                <article className="report-rebuild-card report-rebuild-score-card report-rebuild-reveal-item" style={{ '--reveal-delay': '240ms' }}>
                   <span className="report-rebuild-card-label">신뢰도</span>
                   <strong>
                     {confidenceScore}
@@ -688,7 +697,7 @@ export default async function ReportPage({ params, searchParams }) {
                   <p>{confidenceReason}</p>
                 </article>
 
-                <article className="report-rebuild-card report-rebuild-signal-card">
+                <article className="report-rebuild-card report-rebuild-signal-card report-rebuild-reveal-item" style={{ '--reveal-delay': '300ms' }}>
                   <span className="report-rebuild-card-label">Top 3 결정 리스크</span>
                   <ol className="report-rebuild-signal-list">
                     {riskSignalCards.map((signal, index) => (
@@ -704,70 +713,78 @@ export default async function ReportPage({ params, searchParams }) {
                 </article>
               </div>
 
-              <div className="report-rebuild-meta-grid">
+              <div className="report-rebuild-meta-grid report-rebuild-reveal-item" style={{ '--reveal-delay': '340ms' }}>
                 <SummaryMetaCard label="분석 대상" primary={target.primary} secondary={target.secondary} />
                 <SummaryMetaCard label="분석 일시" primary={analyzedAt} />
               </div>
             </div>
 
           </div>
-        </section>
+        </RevealSection>
 
-        <section className="report-rebuild-section" aria-labelledby="key-axes-heading">
-            <ReportSectionRail
+        <RevealSection as="section" className="report-rebuild-section" aria-labelledby="key-axes-heading">
+            <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
+              <ReportSectionRail
               index="02"
               label="KEY AXES"
               titleLines={['7개 핵심 축으로', '공고를 분석했습니다']}
               bodyLines={[]}
             />
+            </div>
 
-          <div className="report-rebuild-content">
-            <AxisLegendGuide />
-            <div className="report-rebuild-panel report-rebuild-axis-table">
+          <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
+            <div className="report-rebuild-reveal-item" style={{ '--reveal-delay': '130ms' }}>
+              <AxisLegendGuide />
+            </div>
+            <div className="report-rebuild-panel report-rebuild-axis-table report-rebuild-reveal-item" style={{ '--reveal-delay': '190ms' }}>
               {topAxes.map((axis, index) => (
                 <KeyAxisRow axis={axis} index={index} key={`${axis.key}-${index}`} />
               ))}
             </div>
           </div>
-        </section>
+        </RevealSection>
 
-        <section className="report-rebuild-section" aria-labelledby="interview-guide-heading">
-          <ReportSectionRail index="03" label="INTERVIEW GUIDE" titleLines={['면접에서 반드시', '확인할 핵심 질문']} bodyLines={[]} />
+        <RevealSection as="section" className="report-rebuild-section" aria-labelledby="interview-guide-heading">
+          <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
+            <ReportSectionRail index="03" label="INTERVIEW GUIDE" titleLines={['면접에서 반드시', '확인할 핵심 질문']} bodyLines={[]} />
+          </div>
 
-          <div className="report-rebuild-content">
-            <div className="report-rebuild-panel">
+          <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
+            <div className="report-rebuild-panel report-rebuild-reveal-item" style={{ '--reveal-delay': '140ms' }}>
               <div className="report-rebuild-question-grid">
                 {priorityQuestions.map((item, index) => (
                   <InterviewQuestionCard item={item} index={index} key={`${item.question}-${index}`} />
                 ))}
               </div>
                 {additionalQuestions.length ? (
-                  <button className="report-rebuild-secondary-button" type="button">
+                  <button className="report-rebuild-secondary-button report-rebuild-reveal-item" style={{ '--reveal-delay': '220ms' }} type="button">
                     전체 질문 리스트 보기
                   </button>
                 ) : null}
             </div>
           </div>
-        </section>
+        </RevealSection>
 
-        <section className="report-rebuild-section" aria-labelledby="final-action-heading">
-            <ReportSectionRail
+        <RevealSection as="section" className="report-rebuild-section" aria-labelledby="final-action-heading">
+            <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
+              <ReportSectionRail
               index="04"
               label="FINAL ACTION"
               titleLines={['최종 판단과', '다음 단계 제안']}
               bodyLines={[]}
             />
+            </div>
 
-          <div className="report-rebuild-content">
-            <div className="report-rebuild-final-stack">
-              <div className="report-rebuild-panel report-rebuild-final-grid">
-              <article className="report-rebuild-final-card">
+          <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
+            <div className="report-rebuild-final-stack report-rebuild-reveal-item" style={{ '--reveal-delay': '120ms' }}>
+              <div className="report-rebuild-panel report-rebuild-final-grid report-rebuild-reveal-item" style={{ '--reveal-delay': '170ms' }}>
+              <article className="report-rebuild-final-card report-rebuild-reveal-item" style={{ '--reveal-delay': '220ms' }}>
                 <span className="report-rebuild-card-label">최종 권고</span>
                 <h2 id="final-action-heading">{finalHeadline}</h2>
                 <p>{actionGuideText}</p>
               </article>
 
-              <article className="report-rebuild-next-card">
+              <article className="report-rebuild-next-card report-rebuild-reveal-item" style={{ '--reveal-delay': '280ms' }}>
                 <span className="report-rebuild-card-label">다음 단계 제안</span>
                 <ul>
                   {finalActionChecks.map((item) => (
@@ -776,7 +793,7 @@ export default async function ReportPage({ params, searchParams }) {
                 </ul>
               </article>
               {verificationNotes.length ? (
-                <article className="report-rebuild-next-card">
+                <article className="report-rebuild-next-card report-rebuild-reveal-item" style={{ '--reveal-delay': '340ms' }}>
                   <span className="report-rebuild-card-label">추가 확인 필요</span>
                   <ul>
                     {verificationNotes.map((item, index) => (
@@ -789,20 +806,24 @@ export default async function ReportPage({ params, searchParams }) {
 
             </div>
           </div>
-        </section>
+        </RevealSection>
 
-        <section className="report-rebuild-section" aria-labelledby="paid-report-feedback-heading">
-            <ReportSectionRail
+        <RevealSection as="section" className="report-rebuild-section" aria-labelledby="paid-report-feedback-heading">
+            <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
+              <ReportSectionRail
               index="05"
               label="PAID REPORT FEEDBACK"
               titleLines={['의견을 보내주세요']}
               bodyLines={[]}
             />
+            </div>
 
-          <div className="report-rebuild-content">
-            <ReportFeedbackCard analysisId={analysisId} />
+          <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
+            <div className="report-rebuild-reveal-item" style={{ '--reveal-delay': '140ms' }}>
+              <ReportFeedbackCard analysisId={analysisId} />
+            </div>
           </div>
-        </section>
+        </RevealSection>
 
       </div>
     </RebuildFlowShell>

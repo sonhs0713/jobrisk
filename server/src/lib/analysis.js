@@ -2345,6 +2345,9 @@ function buildPreviewHeadlineFromLeadRisk({ leadRisk, risk, jobFamily, fiveAxes 
     if (jobFamily?.id === 'marketing') {
       return '업무 범위가 넓게 묶여 있어 실제 주업무와 우선순위를 먼저 확인해야 합니다.'
     }
+    if (jobFamily?.id === 'sales') {
+      return '영업 전략 문구가 있어도 실제로는 파트너 운영과 가격 조건 협의 비중이 더 큰지 먼저 확인해야 합니다.'
+    }
     if (jobFamily?.id === 'development') {
       return '신규 개발 외 운영·협업 업무 비중이 함께 묶여 있으면 실제 주업무를 먼저 확인해야 합니다.'
     }
@@ -2589,6 +2592,9 @@ function buildFreePreviewLeadRiskQuestion({ key, jobFamily, fiveAxes, criteria }
     if (jobFamily?.id === 'marketing') {
       return '이 역할에서 실제 주업무는 무엇이고, 여러 마케팅 업무 중 어디에 가장 많은 시간이 쓰이나요?'
     }
+    if (jobFamily?.id === 'sales') {
+      return '매출 분석과 영업 전략 수립이 핵심인지, 아니면 파트너 운영과 가격 조건 협의 비중이 더 큰지 확인할 수 있나요?'
+    }
     if (jobFamily?.id === 'operations') {
       return '재고 관리, 입출고 대응, 운영 지원 중 실제 핵심 업무는 무엇이고 어디에 가장 많은 시간이 쓰이나요?'
     }
@@ -2637,6 +2643,20 @@ function buildFreePreviewLeadRisk({ risk, jobFamily, fiveAxes, sevenAxes, criter
   const hasMarketingScopeBreadthSignal =
     jobFamily?.id === 'marketing' &&
     countDistinctKeywordHits(marketingScopeBreadthJoinedText, ['자사몰', 'crm', '인플루언서', '콘텐츠', '라이브커머스', '프로모션', '데이터 분석']) >= 4
+  const salesPartnerOpsJoinedText = sourceLines.join(' ')
+  const salesPartnerOpsLine =
+    jobFamily?.id === 'sales'
+      ? findRawLine(
+          sourceLines,
+          (line) =>
+            countDistinctKeywordHits(line, ['신규 제휴', '파트너', '객실 재고', '가격 조건', '프로모션', '홀세일', '매출 데이터', '영업 전략']) >= 3,
+        ) ||
+        sourceLines.find((line) => /(신규 제휴|파트너|객실 재고|가격 조건|프로모션|홀세일|매출 데이터|영업 전략)/i.test(line)) ||
+        ''
+      : ''
+  const hasSalesPartnerOpsSignal =
+    jobFamily?.id === 'sales' &&
+    countDistinctKeywordHits(salesPartnerOpsJoinedText, ['신규 제휴', '파트너', '객실 재고', '가격 조건', '프로모션', '홀세일', '매출 데이터', '영업 전략']) >= 4
 
   const levelPriority =
     risk === 'low'
@@ -2647,17 +2667,30 @@ function buildFreePreviewLeadRisk({ risk, jobFamily, fiveAxes, sevenAxes, criter
   const ranked = [...axes]
     .map((axis) => {
       const hasScopeBreadthCandidate = axis?.key === 'scopeClarity' && hasMarketingScopeBreadthSignal
+      const hasSalesPartnerOpsCandidate = axis?.key === 'scopeClarity' && hasSalesPartnerOpsSignal
       const summary = hasScopeBreadthCandidate
         ? '업무 범위가 넓게 묶여 있어 실제 주업무와 보조 업무 비중을 먼저 확인해야 합니다.'
+        : hasSalesPartnerOpsCandidate
+        ? '영업 전략 문구는 보이지만, 실제로는 파트너 운영과 가격 조건 협의 비중이 더 큰 역할인지 먼저 확인해야 합니다.'
         : buildAxisFreePreviewText(axis) || buildFreePreviewReasonFromAxis(axis)
-      const evidenceQuote = axis?.evidence?.quote || (hasScopeBreadthCandidate ? marketingScopeBreadthLine : '')
+      const evidenceQuote =
+        axis?.evidence?.quote ||
+        (hasScopeBreadthCandidate ? marketingScopeBreadthLine : '') ||
+        (hasSalesPartnerOpsCandidate ? salesPartnerOpsLine : '')
       let score = (levelPriority[axis?.level] ?? 99) * 10 + (basePriority[axis?.key] ?? 99)
       if (hasScopeBreadthCandidate) score -= 20
+      if (hasSalesPartnerOpsCandidate) score -= 18
       if (evidenceQuote) score -= 2
       if (jobFamily?.id === 'marketing' && axis?.key === 'scopeClarity' && /(자사몰|crm|콘텐츠|프로모션|인플루언서|라이브커머스|협업)/i.test(evidenceQuote)) {
         score -= 3
       }
       if (jobFamily?.id === 'marketing' && axis?.key === 'scopeClarity' && /(넓|경계|여러 업무|함께 묶)/.test(summary)) {
+        score -= 2
+      }
+      if (jobFamily?.id === 'sales' && axis?.key === 'scopeClarity' && /(파트너|가격 조건|프로모션|홀세일|영업 전략)/i.test(evidenceQuote)) {
+        score -= 3
+      }
+      if (jobFamily?.id === 'sales' && axis?.key === 'scopeClarity' && /(파트너 운영|가격 조건 협의|영업 전략 문구)/.test(summary)) {
         score -= 2
       }
       return {
@@ -2682,6 +2715,7 @@ function buildFreePreviewLeadRisk({ risk, jobFamily, fiveAxes, sevenAxes, criter
     supportReasons.push(value)
   }
 
+  pushReason(lead.summary)
   pushReason(buildFreePreviewReasonFromAxis(lead.axis))
   for (const candidate of ranked.slice(1)) {
     if (supportReasons.length >= 2) break
