@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import RebuildFlowShell from '../../components/RebuildFlowShell'
 import styles from '../../components/rebuild-flow-shell.module.css'
 import { apiFetch } from '../../lib/api'
+import { trackEventOnce } from '../../lib/analytics'
 
 function PaymentCompleteContent() {
   const [state, setState] = useState({
@@ -96,6 +97,21 @@ function PaymentCompleteContent() {
 
         const token = data.reportAccessToken
         const detailUrl = `/report/${data.analysisId}?token=${encodeURIComponent(token)}`
+        const purchaseValue = Number(amount || '') || 3000
+
+        trackEventOnce(`purchase:${orderId || paymentId || data.analysisId}`, 'purchase', {
+          transaction_id: orderId || paymentId || data.analysisId,
+          value: purchaseValue,
+          currency: 'KRW',
+          items: [
+            {
+              item_id: 'jobrisk_paid_analysis',
+              item_name: 'JOBRISK Paid Analysis',
+              price: purchaseValue,
+              quantity: 1,
+            },
+          ],
+        })
 
         if (!active) return
 

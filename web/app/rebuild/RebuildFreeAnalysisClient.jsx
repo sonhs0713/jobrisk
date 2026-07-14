@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { apiFetch } from '../../lib/api'
+import { trackEvent } from '../../lib/analytics'
 import styles from './rebuild.module.css'
 
 const INITIAL_PREVIEW = {
@@ -79,9 +80,16 @@ export default function RebuildFreeAnalysisClient() {
         body: JSON.stringify({ jobPostingText: normalized }),
       })
 
-      setPreview(normalizePreview(response))
+      const normalizedPreview = normalizePreview(response)
+      setPreview(normalizedPreview)
       setPreviewJobText(normalized)
       setUpsellError('')
+      trackEvent('free_result_viewed', {
+        analysis_id: normalizedPreview.analysisId,
+        input_length_bucket:
+          normalized.length >= 2000 ? '2000_plus' : normalized.length >= 1000 ? '1000_1999' : normalized.length >= 300 ? '300_999' : '40_299',
+        report_type: 'free',
+      })
     } catch (requestError) {
       setError(requestError.message || '무료 분석 요청 중 문제가 발생했습니다.')
     } finally {
@@ -132,6 +140,18 @@ export default function RebuildFreeAnalysisClient() {
       const params = new URLSearchParams({
         analysisId,
         email: normalizedEmail,
+      })
+      trackEvent('begin_checkout', {
+        currency: 'KRW',
+        value: 3000,
+        items: [
+          {
+            item_id: 'jobrisk_paid_analysis',
+            item_name: 'JOBRISK Paid Analysis',
+            price: 3000,
+            quantity: 1,
+          },
+        ],
       })
 
       window.location.href = `/checkout?${params.toString()}`

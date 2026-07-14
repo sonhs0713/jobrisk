@@ -2,6 +2,7 @@
 import shellStyles from '../../../components/rebuild-flow-shell.module.css'
 import RevealSection from '../../rebuild/RevealSection'
 import HeroTypingTitle from '../../rebuild/HeroTypingTitle'
+import PaidReportViewTracker from './PaidReportViewTracker'
 import ReportFeedbackCard from './ReportFeedbackCard'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
@@ -659,6 +660,7 @@ export default async function ReportPage({ params, searchParams }) {
 
   return (
     <RebuildFlowShell bodyClassName={`${shellStyles.bodyWide} ${shellStyles.reportFrame}`}>
+      <PaidReportViewTracker analysisId={analysisId} />
       <div className="report-page report-rebuild-page">
         <RevealSection as="section" className="report-rebuild-section" aria-labelledby="report-summary-heading">
             <div className="report-rebuild-reveal-item report-rebuild-reveal-rail">
