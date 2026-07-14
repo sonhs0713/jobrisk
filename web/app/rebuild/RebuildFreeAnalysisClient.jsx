@@ -283,7 +283,6 @@ export default function RebuildFreeAnalysisClient() {
                 {paidLoading ? '유료 분석 준비 중...' : '유료 분석 시작하기'}
                 <span aria-hidden="true">→</span>
               </button>
-              <p className={styles.freeUpsellActionHint}>얼리버드 3,000원 적용 중</p>
             </div>
           </div>
         </div>
