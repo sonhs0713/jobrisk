@@ -356,6 +356,74 @@ test('payment verify relays a payment notification once after a successful payme
   }
 })
 
+test('paid feedback relay includes customer email and omits bulky analysis payloads', async () => {
+  const preview = await createPreview()
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
+  const paid = await markPaidReady({
+    analysisId: preview.analysisId,
+    orderId: prepared.data.orderId,
+    paymentId: 'feedback_payment_1',
+    amount: 3000,
+    transactionId: 'feedback_tx_1',
+  })
+
+  const originalFetch = globalThis.fetch
+  const originalEndpoint = process.env.FORMSPREE_FEEDBACK_URL
+  const relays = []
+  process.env.FORMSPREE_FEEDBACK_URL = 'https://example.com/formspree-feedback'
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    if (url === process.env.FORMSPREE_FEEDBACK_URL) {
+      relays.push(String(init?.body || ''))
+      return new Response('ok', { status: 200 })
+    }
+    return originalFetch(input, init)
+  }
+
+  try {
+    const submitted = await post('/api/feedback', {
+      analysisId: preview.analysisId,
+      reportAccessToken: paid.reportAccessToken,
+      rating: 'helpful',
+      note: 'helpful report',
+    })
+
+    assert.equal(submitted.response.status, 200)
+    assert.equal(relays.length, 1)
+    assert.match(relays[0], /customerEmail=buyer%40example.com/)
+    assert.match(relays[0], /previewHeadline=/)
+    assert.doesNotMatch(relays[0], /jobPostingText=/)
+    assert.doesNotMatch(relays[0], /freePreview=/)
+    assert.doesNotMatch(relays[0], /paidDetail=/)
+    assert.doesNotMatch(relays[0], /sectionsFound/)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.FORMSPREE_FEEDBACK_URL = originalEndpoint
+  }
+})
+
+test('paid feedback rejects a wrong report access token', async () => {
+  const preview = await createPreview()
+  const prepared = await post('/api/payments/prepare', { analysisId: preview.analysisId, customerEmail: 'buyer@example.com' })
+  await markPaidReady({
+    analysisId: preview.analysisId,
+    orderId: prepared.data.orderId,
+    paymentId: 'feedback_payment_2',
+    amount: 3000,
+    transactionId: 'feedback_tx_2',
+  })
+
+  const submitted = await post('/api/feedback', {
+    analysisId: preview.analysisId,
+    reportAccessToken: 'wrong-token',
+    rating: 'helpful',
+    note: 'blocked report',
+  })
+
+  assert.equal(submitted.response.status, 403)
+  assert.equal(submitted.data.ok, false)
+})
+
 test('payment verify returns a DB error instead of 404 when Mongo is configured but unavailable', async () => {
   const originalMongoUri = process.env.MONGODB_URI
   const originalMongoDb = process.env.MONGODB_DB

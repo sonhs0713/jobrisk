@@ -1,18 +1,17 @@
 function normalizeFeedbackLabel(rating) {
-  if (rating === 'helpful') return '도움이 됐어요'
-  if (rating === 'unclear') return '조금 애매해요'
-  if (rating === 'wrong') return '해석이 어긋났어요'
-  return rating || '미분류'
+  if (rating === 'helpful') return 'helpful'
+  if (rating === 'unclear') return 'unclear'
+  if (rating === 'wrong') return 'wrong'
+  return rating || 'unknown'
 }
 
-function stringifyPayload(value) {
-  if (!value) return ''
-
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
+function extractJobTitle(analysis) {
+  return String(
+    analysis?.freePreview?.structuredSummary?.jobTitle ||
+      analysis?.structured?.jobTitle ||
+      analysis?.detail?.jobFamily?.label ||
+      '',
+  ).trim()
 }
 
 async function postToFormsfree(endpoint, payload) {
@@ -29,21 +28,23 @@ async function postToFormsfree(endpoint, payload) {
   }
 }
 
-export async function relayFeedbackToFormsfree({ analysisId, rating, note, analysis = null }) {
+export async function relayFeedbackToFormsfree({ analysisId, rating, note, customerEmail = '', analysis = null }) {
   const endpoint = String(process.env.FORMSPREE_FEEDBACK_URL || '').trim()
   if (!endpoint) return { relayed: false, skipped: true }
 
   const payload = new URLSearchParams({
     analysisId,
+    customerEmail: customerEmail || '',
     rating,
     ratingLabel: normalizeFeedbackLabel(rating),
     note: note || '',
-    jobPostingText: String(analysis?.jobPostingText || '').trim(),
-    freePreview: stringifyPayload(analysis?.freePreview || null),
-    paidDetail: stringifyPayload(analysis?.detail || null),
+    jobTitle: extractJobTitle(analysis),
+    previewHeadline: String(analysis?.freePreview?.headline || '').trim(),
+    paidSummary: String(analysis?.detail?.finalSummary || '').trim(),
+    decisionLabel: String(analysis?.detail?.displayVerdict?.label || analysis?.freePreview?.riskLevelLabel || '').trim(),
     source: 'jobrisk-paid-report',
     submittedAt: new Date().toISOString(),
-    subject: `[JobRisk 피드백] ${normalizeFeedbackLabel(rating)} / ${analysisId}`,
+    subject: `[JobRisk feedback] ${normalizeFeedbackLabel(rating)} / ${analysisId}`,
   })
 
   await postToFormsfree(endpoint, payload)
@@ -62,7 +63,7 @@ export async function relayPaymentNotificationToFormsfree({ analysisId, orderId,
     customerEmail: customerEmail || '',
     paidAt: paidAt || new Date().toISOString(),
     source: 'jobrisk-payment',
-    subject: `[JobRisk 결제 완료] ${customerEmail || '이메일 미확인'} / ${orderId}`,
+    subject: `[JobRisk payment] ${customerEmail || 'email-missing'} / ${orderId}`,
   })
 
   await postToFormsfree(endpoint, payload)

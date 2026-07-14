@@ -121,6 +121,32 @@ export async function getOrder(orderId) {
   return memory.orders.get(orderId) || null
 }
 
+export async function getLatestOrderByAnalysisId(analysisId) {
+  const db = await getDb()
+  if (db) {
+    return db.collection('payments').findOne(
+      { analysisId },
+      {
+        sort: {
+          paidAt: -1,
+          createdAt: -1,
+        },
+      },
+    )
+  }
+
+  const matches = Array.from(memory.orders.values()).filter((order) => order.analysisId === analysisId)
+  if (!matches.length) return null
+
+  matches.sort((left, right) => {
+    const leftTime = Date.parse(left.paidAt || left.createdAt || 0)
+    const rightTime = Date.parse(right.paidAt || right.createdAt || 0)
+    return rightTime - leftTime
+  })
+
+  return matches[0] || null
+}
+
 export async function markPaid({
   analysisId,
   orderId,

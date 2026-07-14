@@ -10,6 +10,7 @@ import { relayFeedbackToFormsfree, relayPaymentNotificationToFormsfree } from '.
 import {
   createOrder,
   getAnalysis,
+  getLatestOrderByAnalysisId,
   getOrder,
   hasCurrentDetailBundle,
   markDetailGenerating,
@@ -582,23 +583,39 @@ app.get('/api/analyze/:analysisId/detail', async (req, res) => {
 app.post('/api/feedback', async (req, res) => {
   try {
     const analysisId = String(req.body?.analysisId || '').trim()
+    const reportAccessToken = String(req.body?.reportAccessToken || req.get('x-report-access-token') || '').trim()
     const rating = String(req.body?.rating || '').trim()
+    if (!reportAccessToken) {
+      res.status(400).json({ ok: false, message: 'reportAccessToken이 필요합니다.' })
+      return
+    }
     if (!analysisId || !rating) {
       res.status(400).json({ ok: false, message: 'analysisId와 rating이 필요합니다.' })
       return
     }
 
     const analysis = await getAnalysis(analysisId)
+    if (!analysis || !analysis.paid) {
+      res.status(404).json({ ok: false, message: '유료 분석 결과를 찾을 수 없습니다.' })
+      return
+    }
+    if (!analysis.reportAccessToken || reportAccessToken !== analysis.reportAccessToken) {
+      res.status(403).json({ ok: false, message: '유료 리포트 확인 권한이 없어 피드백을 보낼 수 없습니다.' })
+      return
+    }
+    const order = await getLatestOrderByAnalysisId(analysisId)
+    const note = String(req.body?.note || '').trim()
 
     await saveFeedback({
       analysisId,
       rating,
-      note: String(req.body?.note || '').trim(),
+      note,
     })
     await relayFeedbackToFormsfree({
       analysisId,
       rating,
-      note: String(req.body?.note || '').trim(),
+      note,
+      customerEmail: order?.customerEmail || '',
       analysis,
     })
     res.json({ ok: true })

@@ -822,7 +822,7 @@ export default async function ReportPage({ params, searchParams }) {
 
           <div className="report-rebuild-content report-rebuild-reveal-item report-rebuild-reveal-content" style={{ '--reveal-delay': '80ms' }}>
             <div className="report-rebuild-reveal-item" style={{ '--reveal-delay': '140ms' }}>
-              <ReportFeedbackCard analysisId={analysisId} />
+              <ReportFeedbackCard analysisId={analysisId} reportAccessToken={token} />
             </div>
           </div>
         </RevealSection>

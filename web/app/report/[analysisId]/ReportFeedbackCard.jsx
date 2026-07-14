@@ -10,7 +10,7 @@ const feedbackOptions = [
   { value: 'wrong', label: '기대보다 근거나 해석이 부족했어요' },
 ]
 
-export default function ReportFeedbackCard({ analysisId }) {
+export default function ReportFeedbackCard({ analysisId, reportAccessToken }) {
   const [feedback, setFeedback] = useState({ rating: 'helpful', note: '' })
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -29,6 +29,7 @@ export default function ReportFeedbackCard({ analysisId }) {
         method: 'POST',
         body: JSON.stringify({
           analysisId,
+          reportAccessToken,
           rating: feedback.rating,
           note: feedback.note.trim(),
         }),
