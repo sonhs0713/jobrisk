@@ -174,6 +174,15 @@ export default function RebuildFreeAnalysisClient() {
           </h2>
         </div>
 
+        <div className={styles.mobilePcNotice}>
+          <span className={styles.mobilePcNoticeLabel}>모바일 안내</span>
+          <p>
+            모바일에서는 긴 공고 붙여넣기와 리포트 확인이 불편할 수 있어요.
+            <br />
+            가능하면 PC에서 분석해보세요.
+          </p>
+        </div>
+
         <div className={styles.freeInputCard}>
           <div className={styles.freeInputBox}>
             <textarea
