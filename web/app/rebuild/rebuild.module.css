@@ -824,8 +824,8 @@
 .limitPoint p {
   margin: 4px 0 0;
   color: #6a727c;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .limitsAccentBody {
@@ -1115,7 +1115,7 @@
 .paidFinalGuide strong {
   display: block;
   color: #1f2329;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -1127,14 +1127,14 @@
 .paidFinalGuide p {
   margin: 12px 0 0;
   color: #4f5761;
-  font-size: 12px;
-  line-height: 1.68;
+  font-size: 14px;
+  line-height: 1.72;
 }
 
 .freeQuestionText {
   margin: 12px 0 0;
   color: #34404d;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.72;
 }
@@ -1510,8 +1510,8 @@
 .howItWorksText p {
   margin: 4px 0 0;
   color: #676f7a;
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.58;
 }
 
 .howItWorksArrow {
@@ -1562,8 +1562,8 @@
 .forWhomText p {
   margin: 6px 0 0;
   color: #676f7a;
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.58;
 }
 
 .finalCtaCard {
@@ -1753,8 +1753,8 @@
 .exampleBlock p {
   margin: 12px 0 0;
   color: #4f5761;
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.74;
 }
 
 .exampleArrow {
@@ -1846,8 +1846,8 @@
 .paidPreviewColumn p,
 .paidActionList li {
   color: #4f5761;
-  font-size: 12px;
-  line-height: 1.68;
+  font-size: 14px;
+  line-height: 1.72;
 }
 
 .paidPreviewSummaryCopy p {
@@ -2760,8 +2760,8 @@
   .paidPreviewRiskItem p,
   .paidPreviewColumn p,
   .paidActionList li {
-    font-size: 13px;
-    line-height: 1.65;
+    font-size: 14px;
+    line-height: 1.7;
   }
 
   .paidPreviewScoreValue strong {
