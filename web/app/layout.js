@@ -2,14 +2,18 @@ import './globals.css'
 import Script from 'next/script'
 
 const GA_MEASUREMENT_ID = 'G-0CCNPQS627'
+const SITE_TITLE = '잡리스크 | 채용공고 물경력 가능성 분석'
+const SITE_DESCRIPTION =
+  '채용공고 원문만 보고 물경력 가능성과 면접 확인 포인트를 먼저 짚어주는 서비스'
+const OG_IMAGE_PATH = '/og-jobrisk.png'
 
 export const metadata = {
   metadataBase: new URL('https://jobrisk.vercel.app'),
   title: {
-    default: '잡리스크 | 채용공고 물경력 가능성 분석',
+    default: SITE_TITLE,
     template: '%s | 잡리스크',
   },
-  description: '채용공고 원문만 보고 물경력 가능성과 면접 확인 포인트를 먼저 짚어주는 서비스',
+  description: SITE_DESCRIPTION,
   applicationName: '잡리스크',
   icons: {
     icon: '/favicon.svg',
@@ -17,11 +21,25 @@ export const metadata = {
     apple: '/favicon.svg',
   },
   openGraph: {
-    title: '잡리스크 | 채용공고 물경력 가능성 분석',
-    description: '채용공고 원문만 보고 물경력 가능성과 면접 확인 포인트를 먼저 짚어주는 서비스',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     siteName: '잡리스크',
     locale: 'ko_KR',
     type: 'website',
+    images: [
+      {
+        url: OG_IMAGE_PATH,
+        width: 1200,
+        height: 630,
+        alt: '잡리스크 오픈그래프 이미지',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE_PATH],
   },
 }
 

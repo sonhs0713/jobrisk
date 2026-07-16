@@ -97,12 +97,13 @@ function PaymentCompleteContent() {
 
         const token = data.reportAccessToken
         const detailUrl = `/report/${data.analysisId}?token=${encodeURIComponent(token)}`
-        const purchaseValue = Number(amount || '') || 3000
+        const purchaseValue = Number(data.amount) || Number(amount || '') || 3000
+        const purchaseCurrency = String(data.currency || 'KRW').trim() || 'KRW'
 
         trackEventOnce(`purchase:${orderId || paymentId || data.analysisId}`, 'purchase', {
           transaction_id: orderId || paymentId || data.analysisId,
           value: purchaseValue,
-          currency: 'KRW',
+          currency: purchaseCurrency,
           items: [
             {
               item_id: 'jobrisk_paid_analysis',

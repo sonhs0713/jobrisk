@@ -203,6 +203,8 @@ test('payment verify uses the stored order amount and unlocks detail with token'
   assert.equal(verified.response.status, 200)
   assert.equal(verified.data.ok, true)
   assert.ok(verified.data.reportAccessToken)
+  assert.equal(verified.data.amount, 3000)
+  assert.equal(verified.data.currency, 'KRW')
   assert.equal(verified.data.detailStatus, 'generating')
 
   const status = await waitForDetailReady(preview.analysisId, verified.data.reportAccessToken)
@@ -270,6 +272,8 @@ test('payment verify is idempotent after the order is already paid', async () =>
   assert.equal(first.response.status, 200)
   assert.equal(second.response.status, 200)
   assert.equal(second.data.reportAccessToken, first.data.reportAccessToken)
+  assert.equal(second.data.amount, 3000)
+  assert.equal(second.data.currency, 'KRW')
   assert.equal(typeof second.data.detailStatus, 'string')
 })
 
