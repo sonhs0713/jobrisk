@@ -20,6 +20,16 @@ const PAID_UPGRADE_POINTS = [
   '지원 전 최종 판단 가이드',
 ]
 
+function extractPreviewSourceLabel(jobText) {
+  const firstMeaningfulLine = String(jobText || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+
+  if (!firstMeaningfulLine) return ''
+  return firstMeaningfulLine.length > 44 ? `${firstMeaningfulLine.slice(0, 44)}...` : firstMeaningfulLine
+}
+
 function normalizePreview(payload) {
   const freePreview = payload?.freePreview || {}
   const headline = freePreview.headline || INITIAL_PREVIEW.headline
@@ -62,6 +72,8 @@ export default function RebuildFreeAnalysisClient() {
   const emailError =
     !normalizedEmail || isValidEmail(normalizedEmail) ? '' : '올바른 이메일 주소를 입력해 주세요.'
   const canStartPaidAnalysis = Boolean(normalizedEmail) && !emailError && !paidLoading
+  const hasPreviewResult = Boolean(preview.analysisId)
+  const previewSourceLabel = extractPreviewSourceLabel(previewJobText)
 
   async function handleAnalyze() {
     const normalized = jobText.trim()
@@ -204,7 +216,9 @@ export default function RebuildFreeAnalysisClient() {
           {error ? (
             <p className={styles.freeInputError}>{error}</p>
           ) : (
-            <p className={styles.freeInputStatus}>실제 공고를 넣으면 오른쪽 결과가 바로 갱신됩니다.</p>
+            <p className={styles.freeInputStatus}>
+              {hasPreviewResult ? '분석 완료. 오른쪽 결과를 확인하세요.' : '실제 공고를 넣으면 오른쪽 결과가 바로 갱신됩니다.'}
+            </p>
           )}
         </div>
       </div>
@@ -214,13 +228,26 @@ export default function RebuildFreeAnalysisClient() {
       </div>
 
       <div className={styles.freePreviewColumn}>
-        <div className={styles.freePreviewCard}>
+        <div className={`${styles.freePreviewCard} ${hasPreviewResult ? styles.freePreviewCardReady : ''}`}>
           <div className={styles.freePreviewTop}>
-            <strong>무료 분석 미리보기</strong>
-            <span>전체 리포트는 유료 서비스에서 확인할 수 있습니다.</span>
+            <div className={styles.freePreviewHeading}>
+              {!hasPreviewResult ? <strong>무료 분석 미리보기</strong> : null}
+              {hasPreviewResult ? <span className={styles.freePreviewReadyBadge}>분석 완료</span> : null}
+            </div>
+            <span>
+              {hasPreviewResult
+                ? '방금 분석한 공고 기준으로 무료 결과를 보여주고 있습니다.'
+                : '전체 리포트는 유료 서비스에서 확인할 수 있습니다.'}
+            </span>
           </div>
 
           <div className={styles.freePreviewVerdict}>
+            {hasPreviewResult ? <p className={styles.freePreviewStatus}>입력한 공고로 결과를 갱신했습니다.</p> : null}
+            {hasPreviewResult && previewSourceLabel ? (
+              <p className={styles.freePreviewSource} title={previewSourceLabel}>
+                분석 공고: {previewSourceLabel}
+              </p>
+            ) : null}
             <h3>{preview.headline}</h3>
           </div>
 

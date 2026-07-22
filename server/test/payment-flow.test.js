@@ -16,9 +16,22 @@ import {
 process.env.OPENAI_API_KEY = ''
 process.env.PORTONE_API_SECRET = ''
 process.env.MONGODB_URI = ''
+process.env.RESEND_API_KEY = ''
+process.env.RESEND_FREE_PREVIEW_TO_EMAIL = ''
 
 let server
 let baseUrl
+
+const FREE_PREVIEW_JOB_POSTING = `
+JobRisk product manager hiring
+Responsibilities
+- Run repeated content upload checks and simple request handling every day.
+- Support operational admin tasks and reporting.
+Requirements
+- Spreadsheet experience and basic communication skills.
+Preferred
+- Process improvement experience.
+`
 
 before(() => {
   server = app.listen(0)
@@ -66,18 +79,7 @@ async function waitForDetailReady(analysisId, token, timeoutMs = 1500) {
 }
 
 async function createPreview() {
-  const text = `
-JobRisk product manager hiring
-Responsibilities
-- Run repeated content upload checks and simple request handling every day.
-- Support operational admin tasks and reporting.
-Requirements
-- Spreadsheet experience and basic communication skills.
-Preferred
-- Process improvement experience.
-`
-
-  const { response, data } = await post('/api/analyze/preview', { jobPostingText: text })
+  const { response, data } = await post('/api/analyze/preview', { jobPostingText: FREE_PREVIEW_JOB_POSTING })
   assert.equal(response.status, 200)
   assert.equal(data.ok, true)
   assert.ok(data.analysisId)
@@ -140,6 +142,66 @@ test('preview rejects short job postings', async () => {
 
   assert.equal(response.status, 400)
   assert.equal(data.ok, false)
+})
+
+test('free preview relay includes full job posting text and omits bulky internal payloads', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiKey = process.env.RESEND_API_KEY
+  const originalToEmail = process.env.RESEND_FREE_PREVIEW_TO_EMAIL
+  const originalFromEmail = process.env.RESEND_FREE_PREVIEW_FROM_EMAIL
+  const relays = []
+  process.env.RESEND_API_KEY = 're_test_key'
+  process.env.RESEND_FREE_PREVIEW_TO_EMAIL = 'owner@example.com'
+  process.env.RESEND_FREE_PREVIEW_FROM_EMAIL = 'JOBRISK <onboarding@resend.dev>'
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    if (url === 'https://api.resend.com/emails') {
+      const body = JSON.parse(String(init?.body || '{}'))
+      relays.push(
+        JSON.stringify(body) +
+          '\n' +
+          new URLSearchParams({
+            from: String(body.from || ''),
+            to: Array.isArray(body.to) ? body.to.join(',') : String(body.to || ''),
+            subject: String(body.subject || ''),
+            message: String(body.text || ''),
+            jobPostingText: String(body.text || ''),
+          }).toString(),
+      )
+      return new Response(JSON.stringify({ id: 'email_123' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return originalFetch(input, init)
+  }
+
+  try {
+    const preview = await createPreview()
+    const payload = new URLSearchParams(String(relays[0]).split('\n')[1] || '')
+
+    assert.ok(preview.analysisId)
+    assert.equal(relays.length, 1)
+    assert.equal(payload.get('to'), 'owner@example.com')
+    assert.equal(payload.get('from'), 'JOBRISK <onboarding@resend.dev>')
+    assert.equal(payload.get('message')?.includes('[채용공고 원문]'), true)
+    assert.equal(payload.get('message')?.includes('Process improvement experience.'), true)
+    assert.match(relays[0], /"from":"JOBRISK/)
+    assert.match(relays[0], /"tags":\[/)
+    assert.match(relays[0], /subject=%5BJobRisk\+free\+analysis%5D\+/)
+    assert.doesNotMatch(relays[0], /structured=/)
+    assert.doesNotMatch(relays[0], /freePreview=/)
+    assert.doesNotMatch(relays[0], /decisionReport=/)
+    assert.doesNotMatch(relays[0], /debug=/)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiKey == null) delete process.env.RESEND_API_KEY
+    else process.env.RESEND_API_KEY = originalApiKey
+    if (originalToEmail == null) delete process.env.RESEND_FREE_PREVIEW_TO_EMAIL
+    else process.env.RESEND_FREE_PREVIEW_TO_EMAIL = originalToEmail
+    if (originalFromEmail == null) delete process.env.RESEND_FREE_PREVIEW_FROM_EMAIL
+    else process.env.RESEND_FREE_PREVIEW_FROM_EMAIL = originalFromEmail
+  }
 })
 
 test('payment prepare creates an order for an existing analysis', async () => {
@@ -356,7 +418,8 @@ test('payment verify relays a payment notification once after a successful payme
     assert.match(relays[0], /orderId=/)
   } finally {
     globalThis.fetch = originalFetch
-    process.env.FORMSPREE_PAYMENT_URL = originalEndpoint
+    if (originalEndpoint == null) delete process.env.FORMSPREE_PAYMENT_URL
+    else process.env.FORMSPREE_PAYMENT_URL = originalEndpoint
   }
 })
 
@@ -402,7 +465,8 @@ test('paid feedback relay includes customer email and omits bulky analysis paylo
     assert.doesNotMatch(relays[0], /sectionsFound/)
   } finally {
     globalThis.fetch = originalFetch
-    process.env.FORMSPREE_FEEDBACK_URL = originalEndpoint
+    if (originalEndpoint == null) delete process.env.FORMSPREE_FEEDBACK_URL
+    else process.env.FORMSPREE_FEEDBACK_URL = originalEndpoint
   }
 })
 

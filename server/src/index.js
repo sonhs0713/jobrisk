@@ -6,7 +6,11 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { buildDetailReport, buildPreview, DETAIL_SCHEMA_VERSION } from './lib/analysis.js'
-import { relayFeedbackToFormsfree, relayPaymentNotificationToFormsfree } from './lib/feedbackRelay.js'
+import {
+  relayFeedbackToFormsfree,
+  relayFreePreviewByEmail,
+  relayPaymentNotificationToFormsfree,
+} from './lib/feedbackRelay.js'
 import {
   createOrder,
   getAnalysis,
@@ -152,6 +156,36 @@ async function notifyPaymentCompleted({ analysisId, orderId, paymentId, customer
   }
 }
 
+async function notifyFreePreviewCreated({ analysisId, analysis }) {
+  try {
+    const result = await relayFreePreviewByEmail({
+      analysisId,
+      analysis,
+    })
+    if (result?.relayed) {
+      console.info('[jobrisk][analyze/preview-notify]', {
+        analysisId,
+        provider: result.provider || 'resend',
+        toEmail: result.toEmail || null,
+        emailId: result.emailId || null,
+      })
+      return
+    }
+    if (result?.skipped) {
+      console.warn('[jobrisk][analyze/preview-notify] skipped', {
+        analysisId,
+        provider: result.provider || 'resend',
+        reason: result.reason || 'unknown',
+      })
+    }
+  } catch (error) {
+    console.error('[jobrisk][analyze/preview-notify] failed', {
+      analysisId,
+      message: error?.message || String(error),
+    })
+  }
+}
+
 async function startDetailGeneration({ analysisId }) {
   if (activeDetailGenerations.has(analysisId)) return
   activeDetailGenerations.add(analysisId)
@@ -259,6 +293,10 @@ app.post('/api/analyze/preview', async (req, res) => {
     }
     console.info('[jobrisk][analyze/preview]', previewLogPayload)
     await appendTimingLog('analyze/preview', previewLogPayload)
+    await notifyFreePreviewCreated({
+      analysisId: analysis.analysisId,
+      analysis,
+    })
 
     res.json({
       ok: true,
